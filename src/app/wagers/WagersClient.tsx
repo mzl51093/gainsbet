@@ -188,21 +188,21 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allPro
       )}
 
       {/* Pending acceptance status */}
-      {wager.status === 'pending' && teamPlayers.length > 0 && (
+      {wager.status === 'pending' && (teamPlayers.length > 0 || watchers.length > 0) && (
         <div className="bg-blue-900/20 border border-blue-700/30 rounded-xl p-3 mb-3">
-          <p className="text-xs text-blue-300 font-medium mb-2">Waiting for team to accept...</p>
+          <p className="text-xs text-blue-300 font-medium mb-2">Waiting for everyone to accept...</p>
           <div className="space-y-1">
-            {teamPlayers.map(p => {
+            {[
+              ...teamPlayers.map(p => ({ ...p, role: '🏋️' })),
+              ...watchers.map(p => ({ ...p, role: '💅' })),
+            ].map(p => {
               const accepted = acceptedIds.includes(p.id)
               return (
                 <div key={p.id} className="flex items-center gap-2">
-                  <span className={accepted ? 'text-green-400' : 'text-gray-600'}>
-                    {accepted ? '✓' : '○'}
-                  </span>
-                  <span className={cn('text-xs', accepted ? 'text-green-300' : 'text-gray-400')}>
-                    {p.display_name}
-                  </span>
-                  {accepted && <span className="text-xs text-gray-600">accepted</span>}
+                  <span className={accepted ? 'text-green-400' : 'text-gray-600'}>{accepted ? '✓' : '○'}</span>
+                  <span className="text-xs text-gray-500">{p.role}</span>
+                  <span className={cn('text-xs', accepted ? 'text-green-300' : 'text-gray-400')}>{p.display_name}</span>
+                  {accepted && <span className="text-xs text-gray-600">in</span>}
                 </div>
               )
             })}
@@ -439,7 +439,8 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     const { data: acceptances } = await supabase
       .from('wager_acceptances').select('user_id').eq('wager_id', wagerId)
     const acceptedIds = (acceptances || []).map((a: any) => a.user_id)
-    const allAccepted = (wager?.team_player_ids || []).every((id: string) => acceptedIds.includes(id))
+    const everyone = [...(wager?.team_player_ids || []), ...(wager?.watcher_ids || [])]
+    const allAccepted = everyone.every((id: string) => acceptedIds.includes(id))
     if (allAccepted) {
       await supabase.from('wagers').update({ status: 'active' }).eq('id', wagerId)
     }
