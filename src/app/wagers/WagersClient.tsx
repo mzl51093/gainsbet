@@ -41,7 +41,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     const supabase = createClient()
     const { data, error } = await supabase
       .from('wagers')
-      .select('*, profiles(display_name, username), wager_acceptances(user_id)')
+      .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
       .order('created_at', { ascending: false })
     if (error) setError('Fetch error: ' + error.message)
     setWagers(data || [])
