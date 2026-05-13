@@ -10,10 +10,16 @@ export const WORKOUT_TYPES = [
 
 export type WorkoutType = typeof WORKOUT_TYPES[number]['value']
 
-export function calculatePoints(workoutType: WorkoutType, durationMinutes: number): number {
+export function calculatePoints(workoutType: WorkoutType, durationMinutes: number, multiplier = 1): number {
   const type = WORKOUT_TYPES.find(t => t.value === workoutType)
   if (!type) return 0
-  return Math.max(1, Math.round(type.ptsPerHour * (durationMinutes / 60)))
+  return Math.max(1, Math.round(type.ptsPerHour * (durationMinutes / 60) * multiplier))
+}
+
+// Returns 1.5 between 6-9 AM local time, else 1
+export function getEarlyBirdMultiplier(): number {
+  const hour = new Date().getHours()
+  return hour >= 6 && hour < 9 ? 1.5 : 1
 }
 
 // Keep for display purposes — shows pts/hr rate instead of multiplier

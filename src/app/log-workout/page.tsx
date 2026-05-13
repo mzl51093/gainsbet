@@ -3,7 +3,7 @@
 import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints, getPtsPerHour, getEarlyBirdMultiplier } from '@/lib/points'
 import BottomNav from '@/components/BottomNav'
 import type { WorkoutType } from '@/lib/points'
 
@@ -52,7 +52,9 @@ function LogWorkoutInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const detailedPoints = calculatePoints(workoutType, duration)
+  const earlyBird = getEarlyBirdMultiplier()
+  const isEarlyBird = earlyBird > 1
+  const detailedPoints = calculatePoints(workoutType, duration, earlyBird)
   const ptsPerHour = getPtsPerHour(workoutType)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -78,7 +80,8 @@ function LogWorkoutInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to parse')
-      setParsed(data)
+      // Apply early bird multiplier to AI-parsed points
+      setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
     } catch (err: any) {
       setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
     } finally {
@@ -143,6 +146,17 @@ function LogWorkoutInner() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {/* Early Bird Banner */}
+        {isEarlyBird && (
+          <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-2xl p-3 flex items-center gap-3">
+            <span className="text-2xl">🌅</span>
+            <div>
+              <p className="text-yellow-300 font-bold text-sm">Early Bird Special!</p>
+              <p className="text-yellow-600 text-xs">6–9 AM bonus active — all points are 1.5x today</p>
+            </div>
+          </div>
+        )}
+
         {/* Tab toggle */}
         <div className="flex bg-gray-900 rounded-xl p-1">
           <button
@@ -226,7 +240,7 @@ function LogWorkoutInner() {
                       <label className="block text-xs text-gray-500 mb-1">Type</label>
                       <select
                         value={parsed.workout_type}
-                        onChange={e => setParsed({ ...parsed, workout_type: e.target.value as WorkoutType, points: calculatePoints(e.target.value as WorkoutType, parsed.duration_minutes) })}
+                        onChange={e => setParsed({ ...parsed, workout_type: e.target.value as WorkoutType, points: calculatePoints(e.target.value as WorkoutType, parsed.duration_minutes, earlyBird) })}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       >
                         {WORKOUT_TYPES.map(t => (
@@ -241,7 +255,7 @@ function LogWorkoutInner() {
                         value={parsed.duration_minutes}
                         onChange={e => {
                           const d = Math.max(10, Math.min(300, Number(e.target.value)))
-                          setParsed({ ...parsed, duration_minutes: d, points: calculatePoints(parsed.workout_type, d) })
+                          setParsed({ ...parsed, duration_minutes: d, points: calculatePoints(parsed.workout_type, d, earlyBird) })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       />

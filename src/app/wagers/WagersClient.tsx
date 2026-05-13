@@ -130,12 +130,14 @@ function TrophyCabinet({ wagers, currentUserId, allProfiles }: {
 }
 
 // ── Wager Card ───────────────────────────────────────────────────────────────
-function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allProfiles }: {
+function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoubleDownOffer, onDoubleDownRespond, allProfiles }: {
   wager: any
   currentUserId: string
   onResolve: (id: string, winner: 'competitors' | 'partners') => void
   onDelete: (id: string) => void
   onAccept: (id: string) => void
+  onDoubleDownOffer: (id: string, extraMotivator: string, extraWorker: string) => void
+  onDoubleDownRespond: (id: string, accept: boolean) => void
   allProfiles: Profile[]
 }) {
   const isTeamChallenge = wager.condition_type === 'team_challenge'
@@ -144,8 +146,12 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allPro
   const acceptedIds = (wager.wager_acceptances || []).map((a: any) => a.user_id)
   const isProposerSelf = wager.proposed_by === currentUserId
   const hasAccepted = acceptedIds.includes(currentUserId)
-  // Anyone except the proposer can accept/decline a pending wager
   const canRespond = wager.status === 'pending' && !isProposerSelf && !hasAccepted
+  const isWorker = (wager.team_player_ids || []).includes(currentUserId)
+  const isMotivator = (wager.watcher_ids || []).includes(currentUserId)
+  const [showDDForm, setShowDDForm] = useState(false)
+  const [ddExtraMotivator, setDDExtraMotivator] = useState('')
+  const [ddExtraWorker, setDDExtraWorker] = useState('')
 
   return (
     <div className={cn(
@@ -256,6 +262,78 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allPro
         <p className="text-xs"><span className="text-gray-500">💅 Partners win: </span><span className="text-red-400 font-medium">{wager.stake_if_partners_win}</span></p>
         <p className="text-xs"><span className="text-gray-500">🏆 Team wins: </span><span className="text-green-400 font-medium">{wager.stake_if_competitors_win}</span></p>
       </div>
+
+      {/* Double Down */}
+      {wager.status === 'active' && (
+        <>
+          {/* Motivator can offer double down */}
+          {isMotivator && !wager.double_down_status && (
+            <div className="mb-3">
+              {!showDDForm ? (
+                <button onClick={() => setShowDDForm(true)}
+                  className="w-full bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/40 text-purple-300 text-xs font-bold py-2 rounded-xl transition-colors">
+                  💰 Offer Double Down
+                </button>
+              ) : (
+                <div className="bg-purple-900/20 border border-purple-700/40 rounded-xl p-3 space-y-2">
+                  <p className="text-purple-300 text-xs font-bold">⚡ Double Down Offer</p>
+                  <input type="text" value={ddExtraMotivator} onChange={e => setDDExtraMotivator(e.target.value)}
+                    placeholder="Extra prize if they LOSE (you get)..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500" />
+                  <input type="text" value={ddExtraWorker} onChange={e => setDDExtraWorker(e.target.value)}
+                    placeholder="Extra prize if they WIN (you owe)..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { onDoubleDownOffer(wager.id, ddExtraMotivator, ddExtraWorker); setShowDDForm(false) }}
+                      disabled={!ddExtraMotivator || !ddExtraWorker}
+                      className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                      Send Offer 🔥
+                    </button>
+                    <button onClick={() => setShowDDForm(false)}
+                      className="flex-1 bg-gray-800 text-gray-400 text-xs py-2 rounded-lg">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Worker sees pending double down offer */}
+          {isWorker && wager.double_down_status === 'offered' && (
+            <div className="bg-yellow-900/20 border border-yellow-600/40 rounded-xl p-3 mb-3">
+              <p className="text-yellow-300 text-xs font-bold mb-1">⚡ Double Down Offered!</p>
+              <p className="text-xs text-gray-400 mb-1">If you <span className="text-red-400 font-medium">lose</span>: motivators also get <span className="text-white font-medium">{wager.double_down_extra_motivator}</span></p>
+              <p className="text-xs text-gray-400 mb-2">If you <span className="text-green-400 font-medium">win</span>: you also get <span className="text-white font-medium">{wager.double_down_extra_worker}</span></p>
+              <div className="flex gap-2">
+                <button onClick={() => onDoubleDownRespond(wager.id, true)}
+                  className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                  Accept 🔥
+                </button>
+                <button onClick={() => onDoubleDownRespond(wager.id, false)}
+                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs py-2 rounded-lg transition-colors">
+                  Decline
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Double down accepted — show extra stakes */}
+          {wager.double_down_status === 'accepted' && (
+            <div className="bg-orange-900/20 border border-orange-700/40 rounded-xl p-3 mb-3">
+              <p className="text-orange-300 text-xs font-bold mb-1">⚡ Double Down Active!</p>
+              <p className="text-xs text-gray-400">Extra if workers <span className="text-red-400 font-medium">lose</span>: <span className="text-white">{wager.double_down_extra_motivator}</span></p>
+              <p className="text-xs text-gray-400">Extra if workers <span className="text-green-400 font-medium">win</span>: <span className="text-white">{wager.double_down_extra_worker}</span></p>
+            </div>
+          )}
+
+          {/* Motivator waiting on response */}
+          {isMotivator && wager.double_down_status === 'offered' && (
+            <p className="text-xs text-gray-600 text-center mb-2">⏳ Waiting for worker to respond to double down...</p>
+          )}
+        </>
+      )}
 
       {/* Resolved result */}
       {wager.status === 'resolved' && wager.winner && (
@@ -455,6 +533,24 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     await fetchWagers()
   }
 
+  async function handleDoubleDownOffer(wagerId: string, extraMotivator: string, extraWorker: string) {
+    const supabase = createClient()
+    await supabase.from('wagers').update({
+      double_down_status: 'offered',
+      double_down_extra_motivator: extraMotivator,
+      double_down_extra_worker: extraWorker,
+    }).eq('id', wagerId)
+    await fetchWagers()
+  }
+
+  async function handleDoubleDownRespond(wagerId: string, accept: boolean) {
+    const supabase = createClient()
+    await supabase.from('wagers').update({
+      double_down_status: accept ? 'accepted' : 'declined',
+    }).eq('id', wagerId)
+    await fetchWagers()
+  }
+
   async function handleDelete(wagerId: string) {
     if (!confirm('Delete this wager?')) return
     const supabase = createClient()
@@ -608,6 +704,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             {pendingWagers.map(wager => (
               <WagerCard key={wager.id} wager={wager} currentUserId={currentUserId}
                 onResolve={handleResolve} onDelete={handleDelete} onAccept={handleAccept}
+                onDoubleDownOffer={handleDoubleDownOffer} onDoubleDownRespond={handleDoubleDownRespond}
                 allProfiles={allProfiles} />
             ))}
           </div>
@@ -622,6 +719,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             {activeWagers.map(wager => (
               <WagerCard key={wager.id} wager={wager} currentUserId={currentUserId}
                 onResolve={handleResolve} onDelete={handleDelete} onAccept={handleAccept}
+                onDoubleDownOffer={handleDoubleDownOffer} onDoubleDownRespond={handleDoubleDownRespond}
                 allProfiles={allProfiles} />
             ))}
           </div>
