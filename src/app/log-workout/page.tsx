@@ -14,20 +14,37 @@ const PROOF_TYPES = [
   { value: 'other', label: 'Other', emoji: '📎' },
 ]
 
+interface ParsedWorkout {
+  workout_type: WorkoutType
+  duration_minutes: number
+  points: number
+  summary: string
+}
+
 export default function LogWorkoutPage() {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<'quick' | 'detailed'>('quick')
 
+  // Quick log state
+  const [quickText, setQuickText] = useState('')
+  const [parsing, setParsing] = useState(false)
+  const [parsed, setParsed] = useState<ParsedWorkout | null>(null)
+  const [parseError, setParseError] = useState('')
+
+  // Detailed log state
   const [workoutType, setWorkoutType] = useState<WorkoutType>('strength')
   const [duration, setDuration] = useState(45)
   const [notes, setNotes] = useState('')
+
+  // Shared state
   const [proofType, setProofType] = useState('photo')
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const points = calculatePoints(workoutType, duration)
+  const detailedPoints = calculatePoints(workoutType, duration)
   const multiplier = getDurationMultiplier(duration)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -39,8 +56,29 @@ export default function LogWorkoutPage() {
     reader.readAsDataURL(file)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleParse() {
+    if (!quickText.trim()) return
+    setParsing(true)
+    setParseError('')
+    setParsed(null)
+
+    try {
+      const res = await fetch('/api/parse-workout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: quickText }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to parse')
+      setParsed(data)
+    } catch (err: any) {
+      setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  async function handleSave(overrideData?: ParsedWorkout) {
     setLoading(true)
     setError('')
 
@@ -49,15 +87,12 @@ export default function LogWorkoutPage() {
     if (!user) { router.push('/auth'); return }
 
     let proofUrl: string | null = null
-
-    // Upload proof if provided
     if (proofFile) {
       const ext = proofFile.name.split('.').pop()
       const filePath = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadError, data } = await supabase.storage
         .from('workout-proofs')
         .upload(filePath, proofFile, { cacheControl: '3600', upsert: false })
-
       if (uploadError) {
         setError('Failed to upload proof: ' + uploadError.message)
         setLoading(false)
@@ -66,12 +101,17 @@ export default function LogWorkoutPage() {
       proofUrl = data.path
     }
 
+    const finalType = overrideData?.workout_type ?? workoutType
+    const finalDuration = overrideData?.duration_minutes ?? duration
+    const finalPoints = overrideData?.points ?? detailedPoints
+    const finalNotes = overrideData?.summary ?? (notes || null)
+
     const { error: insertError } = await supabase.from('workouts').insert({
       user_id: user.id,
-      workout_type: workoutType,
-      duration_minutes: duration,
-      points,
-      notes: notes || null,
+      workout_type: finalType,
+      duration_minutes: finalDuration,
+      points: finalPoints,
+      notes: finalNotes,
       proof_url: proofUrl,
       proof_type: proofFile ? proofType : null,
       logged_at: new Date().toISOString(),
@@ -94,160 +134,293 @@ export default function LogWorkoutPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Points preview */}
-          <div className="bg-green-900/20 border border-green-700/40 rounded-2xl p-4 text-center">
-            <p className="text-gray-400 text-sm">You'll earn</p>
-            <p className="text-4xl font-bold text-green-400">{points} pts</p>
-            <p className="text-gray-500 text-xs mt-1">
-              {multiplier}x duration multiplier
-            </p>
-          </div>
+      <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {/* Tab toggle */}
+        <div className="flex bg-gray-900 rounded-xl p-1">
+          <button
+            onClick={() => { setTab('quick'); setParsed(null); setParseError('') }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'quick' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            ✨ Quick Log
+          </button>
+          <button
+            onClick={() => setTab('detailed')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'detailed' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            📋 Detailed
+          </button>
+        </div>
 
-          {/* Workout Type */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-3">Workout Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {WORKOUT_TYPES.map(type => (
+        {/* QUICK LOG TAB */}
+        {tab === 'quick' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Describe your workout in plain English
+              </label>
+              <textarea
+                value={quickText}
+                onChange={e => { setQuickText(e.target.value); setParsed(null) }}
+                placeholder={`e.g. "Just did a 45 min session rotating between treadmill hikes and lifting"`}
+                rows={4}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
+              />
+            </div>
+
+            {parseError && <p className="text-red-400 text-sm">{parseError}</p>}
+
+            {!parsed ? (
+              <button
+                onClick={handleParse}
+                disabled={parsing || !quickText.trim()}
+                className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
+              >
+                {parsing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⚙️</span> Analyzing...
+                  </span>
+                ) : 'Analyze Workout with AI'}
+              </button>
+            ) : (
+              <div className="space-y-4">
+                {/* Parsed result card */}
+                <div className="bg-gray-900 border border-green-700/50 rounded-2xl p-5">
+                  <p className="text-xs text-green-400 font-medium mb-3 uppercase tracking-wide">AI Analysis</p>
+                  <p className="text-white text-sm mb-4">{parsed.summary}</p>
+
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="bg-gray-800 rounded-xl p-3 text-center">
+                      <p className="text-lg">
+                        {WORKOUT_TYPES.find(t => t.value === parsed.workout_type)?.emoji || '💪'}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1 capitalize">
+                        {WORKOUT_TYPES.find(t => t.value === parsed.workout_type)?.label || parsed.workout_type}
+                      </p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-white">{parsed.duration_minutes}m</p>
+                      <p className="text-xs text-gray-400 mt-1">Duration</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-green-400">{parsed.points}</p>
+                      <p className="text-xs text-gray-400 mt-1">Points</p>
+                    </div>
+                  </div>
+
+                  {/* Allow tweaking */}
+                  <p className="text-xs text-gray-600 mb-2">Adjust if needed:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Type</label>
+                      <select
+                        value={parsed.workout_type}
+                        onChange={e => setParsed({ ...parsed, workout_type: e.target.value as WorkoutType, points: calculatePoints(e.target.value as WorkoutType, parsed.duration_minutes) })}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
+                      >
+                        {WORKOUT_TYPES.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Duration (min)</label>
+                      <input
+                        type="number"
+                        value={parsed.duration_minutes}
+                        onChange={e => {
+                          const d = Math.max(10, Math.min(300, Number(e.target.value)))
+                          setParsed({ ...parsed, duration_minutes: d, points: calculatePoints(parsed.workout_type, d) })
+                        }}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Proof section */}
+                {renderProofSection()}
+
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+
                 <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => setWorkoutType(type.value as WorkoutType)}
-                  className={`p-3 rounded-xl border-2 transition-colors text-center ${
-                    workoutType === type.value
-                      ? 'border-green-500 bg-green-500/10'
-                      : 'border-gray-700 bg-gray-900'
-                  }`}
+                  onClick={() => handleSave(parsed)}
+                  disabled={loading}
+                  className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-4 rounded-xl text-lg transition-colors"
                 >
-                  <div className="text-xl mb-1">{type.emoji}</div>
-                  <div className="text-xs text-white leading-tight">{type.label}</div>
-                  <div className="text-xs text-gray-500">{type.basePoints} base pts</div>
+                  {loading ? 'Saving...' : `Log Workout (+${parsed.points} pts)`}
                 </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Duration */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Duration: <span className="text-white font-semibold">{duration} minutes</span>
-            </label>
-            <input
-              type="range"
-              min={15}
-              max={180}
-              step={5}
-              value={duration}
-              onChange={e => setDuration(Number(e.target.value))}
-              className="w-full accent-green-500"
-            />
-            <div className="flex justify-between text-xs text-gray-600 mt-1">
-              <span>15 min</span>
-              <span>1 hour</span>
-              <span>3 hours</span>
-            </div>
-            <div className="grid grid-cols-4 gap-2 mt-3">
-              {[30, 45, 60, 90].map(d => (
                 <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDuration(d)}
-                  className={`py-2 rounded-lg text-sm font-medium transition-colors ${
-                    duration === d
-                      ? 'bg-green-500 text-black'
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  }`}
+                  onClick={() => setParsed(null)}
+                  className="w-full text-gray-500 text-sm py-2"
                 >
-                  {d}m
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Notes (optional)</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="What did you crush today?"
-              rows={3}
-              maxLength={300}
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
-            />
-          </div>
-
-          {/* Proof */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Proof (optional but encouraged)</label>
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              {PROOF_TYPES.map(pt => (
-                <button
-                  key={pt.value}
-                  type="button"
-                  onClick={() => setProofType(pt.value)}
-                  className={`p-2 rounded-xl border-2 transition-colors text-center ${
-                    proofType === pt.value
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-gray-700 bg-gray-900'
-                  }`}
-                >
-                  <div className="text-lg">{pt.emoji}</div>
-                  <div className="text-xs text-gray-400 leading-tight mt-1">{pt.label}</div>
-                </button>
-              ))}
-            </div>
-
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            {proofPreview ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={proofPreview}
-                  alt="Proof preview"
-                  className="w-full rounded-xl object-cover max-h-48"
-                />
-                <button
-                  type="button"
-                  onClick={() => { setProofFile(null); setProofPreview(null) }}
-                  className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
-                >
-                  ✕
+                  Re-analyze
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full bg-gray-900 border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-xl py-6 text-center transition-colors"
-              >
-                <p className="text-gray-400 text-sm">Tap to upload proof</p>
-                <p className="text-gray-600 text-xs mt-1">Photo, screenshot, tracker export</p>
-              </button>
             )}
           </div>
+        )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+        {/* DETAILED LOG TAB */}
+        {tab === 'detailed' && (
+          <div className="space-y-6">
+            {/* Points preview */}
+            <div className="bg-green-900/20 border border-green-700/40 rounded-2xl p-4 text-center">
+              <p className="text-gray-400 text-sm">You'll earn</p>
+              <p className="text-4xl font-bold text-green-400">{detailedPoints} pts</p>
+              <p className="text-gray-500 text-xs mt-1">{multiplier}x duration multiplier</p>
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-4 rounded-xl text-lg transition-colors"
-          >
-            {loading ? 'Logging...' : `Log Workout (+${points} pts)`}
-          </button>
-        </form>
+            {/* Workout Type */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-3">Workout Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {WORKOUT_TYPES.map(type => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => setWorkoutType(type.value as WorkoutType)}
+                    className={`p-3 rounded-xl border-2 transition-colors text-center ${
+                      workoutType === type.value
+                        ? 'border-green-500 bg-green-500/10'
+                        : 'border-gray-700 bg-gray-900'
+                    }`}
+                  >
+                    <div className="text-xl mb-1">{type.emoji}</div>
+                    <div className="text-xs text-white leading-tight">{type.label}</div>
+                    <div className="text-xs text-gray-500">{type.basePoints} base pts</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Duration: <span className="text-white font-semibold">{duration} minutes</span>
+              </label>
+              <input
+                type="range"
+                min={15}
+                max={180}
+                step={5}
+                value={duration}
+                onChange={e => setDuration(Number(e.target.value))}
+                className="w-full accent-green-500"
+              />
+              <div className="flex justify-between text-xs text-gray-600 mt-1">
+                <span>15 min</span>
+                <span>1 hour</span>
+                <span>3 hours</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                {[30, 45, 60, 90].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDuration(d)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                      duration === d
+                        ? 'bg-green-500 text-black'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {d}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Notes (optional)</label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="What did you crush today?"
+                rows={3}
+                maxLength={300}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
+              />
+            </div>
+
+            {/* Proof */}
+            {renderProofSection()}
+
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+
+            <button
+              onClick={() => handleSave()}
+              disabled={loading}
+              className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-4 rounded-xl text-lg transition-colors"
+            >
+              {loading ? 'Logging...' : `Log Workout (+${detailedPoints} pts)`}
+            </button>
+          </div>
+        )}
       </div>
 
       <BottomNav />
     </div>
   )
+
+  function renderProofSection() {
+    return (
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">Proof (optional but encouraged)</label>
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          {PROOF_TYPES.map(pt => (
+            <button
+              key={pt.value}
+              type="button"
+              onClick={() => setProofType(pt.value)}
+              className={`p-2 rounded-xl border-2 transition-colors text-center ${
+                proofType === pt.value
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-gray-700 bg-gray-900'
+              }`}
+            >
+              <div className="text-lg">{pt.emoji}</div>
+              <div className="text-xs text-gray-400 leading-tight mt-1">{pt.label}</div>
+            </button>
+          ))}
+        </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {proofPreview ? (
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={proofPreview} alt="Proof preview" className="w-full rounded-xl object-cover max-h-48" />
+            <button
+              type="button"
+              onClick={() => { setProofFile(null); setProofPreview(null) }}
+              className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="w-full bg-gray-900 border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-xl py-6 text-center transition-colors"
+          >
+            <p className="text-gray-400 text-sm">Tap to upload proof</p>
+            <p className="text-gray-600 text-xs mt-1">Photo, screenshot, tracker export</p>
+          </button>
+        )}
+      </div>
+    )
+  }
 }
