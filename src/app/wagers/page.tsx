@@ -17,11 +17,6 @@ export default async function WagersPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: wagers } = await supabase
-    .from('wagers')
-    .select('*, profiles(display_name, username), wager_acceptances(*, profiles(display_name))')
-    .order('created_at', { ascending: false })
-
   const { data: allProfiles } = await supabase
     .from('profiles')
     .select('*')
@@ -40,9 +35,7 @@ export default async function WagersPage() {
 
       <div className="max-w-lg mx-auto px-4 pt-6">
         <WagersClient
-          wagers={wagers || []}
           currentUserId={user.id}
-          currentProfile={profile}
           allProfiles={allProfiles || []}
           weekStart={getWeekStart().toISOString()}
         />

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, cn } from '@/lib/utils'
 import { WEEKLY_GOAL } from '@/lib/points'
@@ -15,23 +14,15 @@ const CONDITION_SHORT: Record<string, string> = {
   custom: 'Custom',
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-900/30 border-yellow-700/50',
-  active: 'bg-gray-900 border-gray-700',
-  resolved: 'bg-gray-900 border-gray-800',
-  expired: 'bg-gray-900 border-gray-800',
-}
-
 interface Props {
-  wagers: any[]
   currentUserId: string
-  currentProfile: Profile
   allProfiles: Profile[]
   weekStart: string
 }
 
-export default function WagersClient({ wagers, currentUserId, currentProfile, allProfiles, weekStart }: Props) {
-  const router = useRouter()
+export default function WagersClient({ currentUserId, allProfiles, weekStart }: Props) {
+  const [wagers, setWagers] = useState<any[]>([])
+  const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -46,21 +37,29 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
   const [teamPlayerIds, setTeamPlayerIds] = useState<string[]>([currentUserId])
   const [watcherIds, setWatcherIds] = useState<string[]>([])
 
+  const fetchWagers = useCallback(async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('wagers')
+      .select('*, profiles(display_name, username), wager_acceptances(user_id)')
+      .order('created_at', { ascending: false })
+    setWagers(data || [])
+    setFetching(false)
+  }, [])
+
+  useEffect(() => { fetchWagers() }, [fetchWagers])
+
   function togglePlayer(id: string, side: 'team' | 'watcher') {
     if (side === 'team') {
-      setTeamPlayerIds(prev =>
-        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-      )
+      setTeamPlayerIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
       setWatcherIds(prev => prev.filter(x => x !== id))
     } else {
-      setWatcherIds(prev =>
-        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-      )
+      setWatcherIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
       setTeamPlayerIds(prev => prev.filter(x => x !== id))
     }
   }
 
-  function getSideForUser(id: string): 'team' | 'watcher' | null {
+  function getSide(id: string): 'team' | 'watcher' | null {
     if (teamPlayerIds.includes(id)) return 'team'
     if (watcherIds.includes(id)) return 'watcher'
     return null
@@ -73,7 +72,7 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
     setError('')
 
     const supabase = createClient()
-    const { data: wager, error: insertError } = await supabase.from('wagers').insert({
+    const { error: insertError } = await supabase.from('wagers').insert({
       title,
       description: description || null,
       proposed_by: currentUserId,
@@ -84,23 +83,23 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
       stake_if_competitors_win: stakeIfCompetitorsWin,
       team_player_ids: teamPlayerIds,
       watcher_ids: watcherIds,
-      status: 'active', // go active immediately — no pending phase needed
-    }).select().single()
+      status: 'active',
+    })
 
-    if (insertError || !wager) {
-      setError(insertError?.message || 'Failed to create wager')
+    if (insertError) {
+      setError(insertError.message)
       setLoading(false)
       return
     }
 
-    // Auto-accept for proposer
-    await supabase.from('wager_acceptances').insert({ wager_id: wager.id, user_id: currentUserId })
-
+    // Reset form
     setShowForm(false)
     setTitle(''); setDescription(''); setStakeIfPartnersWin(''); setStakeIfCompetitorsWin('')
     setTeamPlayerIds([currentUserId]); setWatcherIds([])
-    router.refresh()
     setLoading(false)
+
+    // Re-fetch wagers to show the new one
+    await fetchWagers()
   }
 
   async function handleResolve(wagerId: string, winner: 'competitors' | 'partners') {
@@ -110,7 +109,7 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
       winner,
       resolved_at: new Date().toISOString(),
     }).eq('id', wagerId)
-    router.refresh()
+    await fetchWagers()
   }
 
   const activeWagers = wagers.filter(w => w.status === 'active' || w.status === 'pending')
@@ -129,15 +128,11 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
         <form onSubmit={handleCreateWager} className="bg-gray-900 rounded-2xl p-5 space-y-5">
           <h2 className="text-white font-bold text-lg">New Wager</h2>
 
-          {/* Title */}
           <div>
             <label className="block text-sm text-gray-400 mb-2">Title</label>
             <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Week 3 Team Challenge"
-              required
+              type="text" value={title} onChange={e => setTitle(e.target.value)}
+              placeholder="Week 3 Team Challenge" required
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors"
             />
           </div>
@@ -147,7 +142,7 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
             <label className="block text-sm text-gray-400 mb-3">Assign Participants</label>
             <div className="space-y-2">
               {allProfiles.map(p => {
-                const side = getSideForUser(p.id)
+                const side = getSide(p.id)
                 return (
                   <div key={p.id} className="bg-gray-800 rounded-xl p-3 flex items-center justify-between">
                     <div>
@@ -155,28 +150,16 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
                       <p className="text-gray-500 text-xs">@{p.username}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => togglePlayer(p.id, 'team')}
-                        className={cn(
-                          'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                          side === 'team'
-                            ? 'bg-green-500 text-black'
-                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                        )}
-                      >
+                      <button type="button" onClick={() => togglePlayer(p.id, 'team')}
+                        className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                          side === 'team' ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                        )}>
                         🏋️ Competing
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => togglePlayer(p.id, 'watcher')}
-                        className={cn(
-                          'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                          side === 'watcher'
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                        )}
-                      >
+                      <button type="button" onClick={() => togglePlayer(p.id, 'watcher')}
+                        className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                          side === 'watcher' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                        )}>
                         💅 Partner
                       </button>
                     </div>
@@ -184,42 +167,35 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
                 )
               })}
             </div>
-            {teamPlayerIds.length > 0 && (
+            {(teamPlayerIds.length > 0 || watcherIds.length > 0) && (
               <p className="text-xs text-gray-500 mt-2">
-                Competing: {allProfiles.filter(p => teamPlayerIds.includes(p.id)).map(p => p.display_name).join(', ')}
-                {watcherIds.length > 0 && ` · Partners: ${allProfiles.filter(p => watcherIds.includes(p.id)).map(p => p.display_name).join(', ')}`}
+                {teamPlayerIds.length > 0 && `🏋️ ${allProfiles.filter(p => teamPlayerIds.includes(p.id)).map(p => p.display_name).join(', ')}`}
+                {watcherIds.length > 0 && `  💅 ${allProfiles.filter(p => watcherIds.includes(p.id)).map(p => p.display_name).join(', ')}`}
               </p>
             )}
           </div>
 
-          {/* Condition type */}
+          {/* Win condition */}
           <div>
             <label className="block text-sm text-gray-400 mb-3">Win Condition</label>
             <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setConditionType('team_challenge')}
+              <button type="button" onClick={() => setConditionType('team_challenge')}
                 className={`w-full p-3 rounded-xl border-2 text-left transition-colors ${
                   conditionType === 'team_challenge' ? 'border-orange-500 bg-orange-500/10' : 'border-gray-700 bg-gray-800'
-                }`}
-              >
+                }`}>
                 <div className="flex items-center gap-2">
                   <span>🤝</span>
                   <span className="text-white text-sm font-medium">Team Challenge</span>
                   <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full ml-auto">Popular</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1 ml-6">Partners win if <strong className="text-white">either</strong> competing player misses the goal</p>
+                <p className="text-xs text-gray-400 mt-1 ml-6">Partners win if <strong className="text-white">either</strong> player misses the goal</p>
               </button>
               <div className="grid grid-cols-2 gap-2">
                 {(['both_fail', 'either_fails', 'one_fails', 'custom'] as const).map(type => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setConditionType(type)}
+                  <button key={type} type="button" onClick={() => setConditionType(type)}
                     className={`p-3 rounded-xl border-2 text-left transition-colors ${
                       conditionType === type ? 'border-yellow-500 bg-yellow-500/10' : 'border-gray-700 bg-gray-800'
-                    }`}
-                  >
+                    }`}>
                     <p className="text-white text-xs font-medium">{CONDITION_SHORT[type]}</p>
                   </button>
                 ))}
@@ -232,95 +208,72 @@ export default function WagersClient({ wagers, currentUserId, currentProfile, al
             <label className="block text-sm text-gray-400 mb-2">
               Weekly goal: <span className="text-white font-semibold">{pointThreshold} pts each</span>
             </label>
-            <input
-              type="range" min={20} max={150} step={5} value={pointThreshold}
+            <input type="range" min={20} max={150} step={5} value={pointThreshold}
               onChange={e => setPointThreshold(Number(e.target.value))}
-              className="w-full accent-yellow-500"
-            />
+              className="w-full accent-yellow-500" />
             <div className="flex justify-between text-xs text-gray-600 mt-1">
               <span>20 (easy)</span><span>50 (default)</span><span>150 (beast)</span>
             </div>
           </div>
 
-          {/* Stakes */}
           <div>
             <label className="block text-sm text-gray-400 mb-2">💅 If the partners win...</label>
-            <input
-              type="text" value={stakeIfPartnersWin}
-              onChange={e => setStakeIfPartnersWin(e.target.value)}
-              placeholder="e.g. Buy her a bouquet of flowers"
-              required
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors"
-            />
+            <input type="text" value={stakeIfPartnersWin} onChange={e => setStakeIfPartnersWin(e.target.value)}
+              placeholder="e.g. Buy her a bouquet of flowers" required
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors" />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-2">🏆 If the team wins...</label>
-            <input
-              type="text" value={stakeIfCompetitorsWin}
-              onChange={e => setStakeIfCompetitorsWin(e.target.value)}
-              placeholder="e.g. Wives cook dinner all week"
-              required
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors"
-            />
+            <input type="text" value={stakeIfCompetitorsWin} onChange={e => setStakeIfCompetitorsWin(e.target.value)}
+              placeholder="e.g. Wives cook dinner all week" required
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors" />
           </div>
 
           <div>
             <label className="block text-sm text-gray-400 mb-2">Notes (optional)</label>
-            <textarea
-              value={description} onChange={e => setDescription(e.target.value)}
+            <textarea value={description} onChange={e => setDescription(e.target.value)}
               placeholder="Any other details..." rows={2}
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors resize-none"
-            />
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors resize-none" />
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
-          <button
-            type="submit" disabled={loading}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-yellow-900 text-black font-bold py-3 rounded-xl transition-colors"
-          >
+          <button type="submit" disabled={loading}
+            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-yellow-900 text-black font-bold py-3 rounded-xl transition-colors">
             {loading ? 'Creating...' : 'Propose Wager'}
           </button>
         </form>
       )}
 
-      {/* Active wagers */}
-      {activeWagers.length > 0 && (
+      {fetching && (
+        <div className="text-center py-8 text-gray-500 text-sm">Loading wagers...</div>
+      )}
+
+      {!fetching && activeWagers.length > 0 && (
         <div>
           <h2 className="text-white font-semibold mb-3">Active Wagers 🔥</h2>
           <div className="space-y-3">
             {activeWagers.map(wager => (
-              <WagerCard
-                key={wager.id}
-                wager={wager}
-                onResolve={handleResolve}
-                allProfiles={allProfiles}
-                isProposer={wager.proposed_by === currentUserId}
-              />
+              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve}
+                allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
             ))}
           </div>
         </div>
       )}
 
-      {/* Resolved */}
-      {resolvedWagers.length > 0 && (
+      {!fetching && resolvedWagers.length > 0 && (
         <div>
           <h2 className="text-gray-500 font-semibold mb-3">Past Wagers</h2>
           <div className="space-y-3">
             {resolvedWagers.map(wager => (
-              <WagerCard
-                key={wager.id}
-                wager={wager}
-                onResolve={handleResolve}
-                allProfiles={allProfiles}
-                isProposer={wager.proposed_by === currentUserId}
-              />
+              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve}
+                allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
             ))}
           </div>
         </div>
       )}
 
-      {wagers.length === 0 && !showForm && (
+      {!fetching && wagers.length === 0 && !showForm && (
         <div className="text-center py-12">
           <p className="text-4xl mb-3">🤝</p>
           <p className="text-gray-400">No wagers yet.</p>
@@ -338,14 +291,11 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
   isProposer: boolean
 }) {
   const isTeamChallenge = wager.condition_type === 'team_challenge'
-  const borderStyle = STATUS_STYLES[wager.status] || STATUS_STYLES.active
-
   const teamPlayers = allProfiles.filter(p => (wager.team_player_ids || []).includes(p.id))
   const watchers = allProfiles.filter(p => (wager.watcher_ids || []).includes(p.id))
 
   return (
-    <div className={cn('border rounded-2xl p-4', borderStyle)}>
-      {/* Header */}
+    <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -356,11 +306,10 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            Proposed by {wager.profiles?.display_name} · {formatDate(wager.created_at)}
+            By {wager.profiles?.display_name} · {formatDate(wager.created_at)}
           </p>
         </div>
-        <span className={cn(
-          'text-xs px-2 py-1 rounded-full font-medium shrink-0',
+        <span className={cn('text-xs px-2 py-1 rounded-full font-medium shrink-0',
           wager.status === 'active' ? 'bg-green-900/40 text-green-400' :
           wager.status === 'pending' ? 'bg-yellow-900/40 text-yellow-400' :
           'bg-gray-800 text-gray-500'
@@ -369,29 +318,24 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
         </span>
       </div>
 
-      {/* Participants */}
       {(teamPlayers.length > 0 || watchers.length > 0) && (
         <div className="bg-gray-800/60 rounded-xl p-3 mb-3 space-y-2">
           {teamPlayers.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 w-16 shrink-0">🏋️ Team:</span>
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-gray-500 shrink-0 mt-0.5">🏋️ Team:</span>
               <div className="flex flex-wrap gap-1">
                 {teamPlayers.map(p => (
-                  <span key={p.id} className="text-xs bg-green-900/40 text-green-300 px-2 py-0.5 rounded-full">
-                    {p.display_name}
-                  </span>
+                  <span key={p.id} className="text-xs bg-green-900/40 text-green-300 px-2 py-0.5 rounded-full">{p.display_name}</span>
                 ))}
               </div>
             </div>
           )}
           {watchers.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 w-16 shrink-0">💅 Partners:</span>
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-gray-500 shrink-0 mt-0.5">💅 Partners:</span>
               <div className="flex flex-wrap gap-1">
                 {watchers.map(p => (
-                  <span key={p.id} className="text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded-full">
-                    {p.display_name}
-                  </span>
+                  <span key={p.id} className="text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded-full">{p.display_name}</span>
                 ))}
               </div>
             </div>
@@ -401,7 +345,6 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
 
       {wager.description && <p className="text-gray-400 text-sm mb-3">{wager.description}</p>}
 
-      {/* Condition */}
       {isTeamChallenge ? (
         <div className="bg-orange-900/20 border border-orange-700/30 rounded-xl p-3 mb-3">
           <p className="text-xs text-orange-300 font-medium mb-1">⚡ Team Challenge</p>
@@ -414,29 +357,19 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
         <p className="text-xs text-gray-500 mb-3">{CONDITION_SHORT[wager.condition_type]} · {wager.point_threshold} pts</p>
       )}
 
-      {/* Stakes */}
       <div className="space-y-1 mb-3">
-        <div className="text-xs">
-          <span className="text-gray-500">💅 Partners win: </span>
-          <span className="text-red-400 font-medium">{wager.stake_if_partners_win}</span>
-        </div>
-        <div className="text-xs">
-          <span className="text-gray-500">🏆 Team wins: </span>
-          <span className="text-green-400 font-medium">{wager.stake_if_competitors_win}</span>
-        </div>
+        <p className="text-xs"><span className="text-gray-500">💅 Partners win: </span><span className="text-red-400 font-medium">{wager.stake_if_partners_win}</span></p>
+        <p className="text-xs"><span className="text-gray-500">🏆 Team wins: </span><span className="text-green-400 font-medium">{wager.stake_if_competitors_win}</span></p>
       </div>
 
-      {/* Result */}
       {wager.status === 'resolved' && wager.winner && (
-        <div className={cn(
-          'text-center py-2 rounded-xl text-sm font-bold',
+        <div className={cn('text-center py-2 rounded-xl text-sm font-bold',
           wager.winner === 'competitors' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
         )}>
           {wager.winner === 'competitors' ? '🏆 Team won!' : '💅 Partners won!'}
         </div>
       )}
 
-      {/* Resolve buttons — any participant can resolve */}
       {wager.status === 'active' && isProposer && (
         <div className="flex gap-2 mt-3">
           <button onClick={() => onResolve(wager.id, 'competitors')}
