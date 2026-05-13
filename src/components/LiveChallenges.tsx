@@ -27,40 +27,47 @@ interface ChallengeData {
 }
 
 const WORKER_NUDGES_ON_TRACK = [
-  "Solid pace. Don't slow down — the Motivators are watching 👀",
-  "You're on track. Keep grinding and this one's yours 🎯",
-  "Looking strong. Don't let the couch win this week 💪",
+  "You're on pace. Don't get cocky — the couch is always one bad day away from winning. 🛋️",
+  "Solid. Your motivator is currently stress-eating and pretending not to care. Keep going. 😤",
+  "On track and looking good. This is the part where you DON'T celebrate early like an idiot. 🎯",
+  "Progress confirmed. Your motivator has been suspiciously quiet. That means they're nervous. 👀",
 ]
 const WORKER_NUDGES_BEHIND = [
-  "You're falling behind. One solid session puts you back in it ⚡",
-  "The Motivators are smelling blood 👀 Time to wake up.",
-  "Behind pace but not out. Log something today and close the gap 🏃",
+  "Behind pace. Your motivator just smiled at their phone. That smile was about YOU. Do something. 😬",
+  "You're slipping. At this rate your prize money is going to a spa day you're not invited to. 💅",
+  "Falling behind? Bold strategy. Real bold. Maybe try going to the gym instead? Just a thought. 🏃",
+  "The gap is real. The couch is winning. This is genuinely embarrassing and we say that with love. ⚠️",
 ]
 const WORKER_NUDGES_RED = [
-  "RED ALERT 🚨 You need to grind hard the rest of this week.",
-  "They're already planning what to spend it on 💅 Prove them wrong.",
-  "This is salvageable. But you need to act NOW ⚠️",
+  "🚨 RED ALERT. Your motivator is already texting about what to spend it on. We've seen the receipts.",
+  "At this trajectory you are COOKED. Like, fully done. Medium-well. Time to do literally anything physical.",
+  "This is rock bottom. The good news: the only way is up. The bad news: you have to actually go up. NOW. 😭",
+  "Your motivator has already picked out what they're ordering. Go to the gym. We are begging you. 🙏",
 ]
 const WORKER_NUDGES_CRUSHING = [
-  "You're absolutely crushing it 💥 Keep this up.",
-  "Machine mode activated. Don't let up 🔥",
-  "This is what it looks like when someone wants to WIN 🏆",
+  "Absolutely destroying it 💥 Your motivator is in full panic mode. Do NOT let them recover.",
+  "Machine. Literal machine. Your motivator has gone suspiciously quiet. Finish them. 🏆",
+  "This is what peak performance looks like. Disgusting. We mean that as a compliment. Keep going. 🔥",
+  "You're so far ahead it's almost unfair. Almost. It's actually completely fair and you earned it. 💪",
 ]
 
 const MOTIVATOR_ON_TRACK = [
-  "They're on track 😤 Quick, send a distraction. ...Just kidding. Maybe.",
-  "Looking strong over there. Your dinner plans might be in jeopardy 😂",
-  "They're doing well. Better start the trash talk now, soften their focus 👀",
+  "They're on track 😤 Annoying, right? Maybe accidentally schedule something during their gym time.",
+  "Looking strong over there. Start mentally preparing your gracious loser speech. You'll need it. 😂",
+  "They're doing well. Now is exactly the right time to ask them to help you move furniture. 📦",
+  "Ugh, they're keeping pace. Your prize is slipping away in real time. Have you tried guilt-tripping? 🙃",
 ]
 const MOTIVATOR_BEHIND = [
-  "Ooooh they're slipping 👀 Now's the time to stir the pot a little 😈",
-  "They're behind pace... your prize is getting closer 💅 Don't say anything yet.",
-  "Send a meme. Send a GIF. Do not let them catch up. 😂",
+  "Ooooh they're slipping 👀 This is NOT the time to be supportive. Strategically say nothing.",
+  "They're behind pace and your prize is getting closer. Act normal. Do not let them see you smiling. 💅",
+  "Things are looking shaky for the workers. Now would be a great time to cook a big delicious dinner. Distract them. 🍝",
+  "Behind pace and cracking. Send a meme about rest days. You're just being thoughtful. 😈",
 ]
 const MOTIVATOR_RED = [
-  "This is looking VERY promising for you 💅 Stay quiet and let it happen.",
-  "They're in trouble. Try not to look too happy about it 😏",
-  "Your prize is basically secured at this rate. Maybe remind them what's at stake? 😈",
+  "They are IN TROUBLE. Stay calm. Act concerned. Internally: 🎉🎉🎉",
+  "This is basically over. Your prize is so close you can taste it. DO NOT say anything that motivates them. 🤫",
+  "They're cooked and they don't fully know it yet. Let them figure it out on their own timeline. 💅",
+  "Secured. You've won this in your heart already. The math just needs to catch up. Stay quiet. 😏",
 ]
 
 function pick(arr: string[], seed: string) {
@@ -144,8 +151,14 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
 
       {/* Nudge */}
       {nudge && (
-        <div className="bg-gray-800/60 rounded-xl px-3 py-2 mb-3">
-          <p className="text-xs text-gray-300">{nudge}</p>
+        <div className={`rounded-xl px-3 py-2.5 mb-3 border-l-4 ${
+          allOnTrack
+            ? 'bg-green-900/20 border-green-500'
+            : anyAtRisk
+            ? 'bg-red-900/20 border-red-500'
+            : 'bg-gray-800/60 border-gray-600'
+        }`}>
+          <p className="text-xs text-gray-200 leading-relaxed">{nudge}</p>
         </div>
       )}
 
@@ -230,8 +243,12 @@ function MotivatorCard({ challenge, userId }: { challenge: ChallengeData; userId
       </div>
 
       {/* Motivator nudge */}
-      <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-3 py-2 mb-3">
-        <p className="text-xs text-purple-200">{nudge}</p>
+      <div className={`rounded-xl px-3 py-2.5 mb-3 border-l-4 ${
+        allAtRisk ? 'bg-purple-900/30 border-purple-400' :
+        anyAtRisk ? 'bg-purple-900/20 border-purple-600' :
+        'bg-gray-800/60 border-gray-600'
+      }`}>
+        <p className="text-xs text-gray-200 leading-relaxed">{nudge}</p>
       </div>
 
       {/* Prize */}
