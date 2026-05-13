@@ -130,22 +130,22 @@ function TrophyCabinet({ wagers, currentUserId, allProfiles }: {
 }
 
 // ── Wager Card ───────────────────────────────────────────────────────────────
-function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allProfiles, isProposer }: {
+function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allProfiles }: {
   wager: any
   currentUserId: string
   onResolve: (id: string, winner: 'competitors' | 'partners') => void
   onDelete: (id: string) => void
   onAccept: (id: string) => void
   allProfiles: Profile[]
-  isProposer: boolean
 }) {
   const isTeamChallenge = wager.condition_type === 'team_challenge'
   const teamPlayers = allProfiles.filter(p => (wager.team_player_ids || []).includes(p.id))
   const watchers = allProfiles.filter(p => (wager.watcher_ids || []).includes(p.id))
   const acceptedIds = (wager.wager_acceptances || []).map((a: any) => a.user_id)
-  const isTeamMember = (wager.team_player_ids || []).includes(currentUserId)
+  const isProposerSelf = wager.proposed_by === currentUserId
   const hasAccepted = acceptedIds.includes(currentUserId)
-  const canAccept = wager.status === 'pending' && isTeamMember && !hasAccepted
+  // Anyone except the proposer can accept/decline a pending wager
+  const canRespond = wager.status === 'pending' && !isProposerSelf && !hasAccepted
 
   return (
     <div className={cn(
@@ -266,16 +266,25 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, allPro
         </div>
       )}
 
-      {/* Accept button */}
-      {canAccept && (
-        <button onClick={() => onAccept(wager.id)}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors mb-2 flex items-center justify-center gap-2">
-          🤝 Accept Challenge
-        </button>
+      {/* Accept / Decline buttons */}
+      {canRespond && (
+        <div className="flex gap-2 mb-2">
+          <button onClick={() => onAccept(wager.id)}
+            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-1">
+            🤝 Accept
+          </button>
+          <button onClick={() => onDelete(wager.id)}
+            className="flex-1 bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-400 border border-gray-700 hover:border-red-700 font-bold py-3 rounded-xl text-sm transition-colors">
+            ✕ Decline
+          </button>
+        </div>
+      )}
+      {wager.status === 'pending' && isProposerSelf && (
+        <p className="text-xs text-gray-600 text-center mb-2">Waiting for others to accept...</p>
       )}
 
       {/* Proposer controls */}
-      {isProposer && (
+      {isProposerSelf && (
         <div className="flex gap-2 mt-1">
           {wager.status === 'active' && (<>
             <button onClick={() => onResolve(wager.id, 'competitors')}
@@ -598,7 +607,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             {pendingWagers.map(wager => (
               <WagerCard key={wager.id} wager={wager} currentUserId={currentUserId}
                 onResolve={handleResolve} onDelete={handleDelete} onAccept={handleAccept}
-                allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
+                allProfiles={allProfiles} />
             ))}
           </div>
         </div>
@@ -612,7 +621,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             {activeWagers.map(wager => (
               <WagerCard key={wager.id} wager={wager} currentUserId={currentUserId}
                 onResolve={handleResolve} onDelete={handleDelete} onAccept={handleAccept}
-                allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
+                allProfiles={allProfiles} />
             ))}
           </div>
         </div>
