@@ -1,34 +1,32 @@
+// Points are earned per hour of effort — longer and harder workouts scale linearly
 export const WORKOUT_TYPES = [
-  { value: 'strength', label: 'Strength / Lifting', basePoints: 10, emoji: '🏋️' },
-  { value: 'cardio', label: 'Cardio / Running', basePoints: 8, emoji: '🏃' },
-  { value: 'hiit', label: 'HIIT', basePoints: 12, emoji: '⚡' },
-  { value: 'flexibility', label: 'Flexibility / Recovery', basePoints: 5, emoji: '🧘' },
-  { value: 'sports', label: 'Sports / Active', basePoints: 7, emoji: '⚽' },
-  { value: 'other', label: 'Other', basePoints: 6, emoji: '💪' },
+  { value: 'strength', label: 'Strength / Lifting', ptsPerHour: 12, emoji: '🏋️' },
+  { value: 'cardio', label: 'Cardio / Running', ptsPerHour: 10, emoji: '🏃' },
+  { value: 'hiit', label: 'HIIT', ptsPerHour: 15, emoji: '⚡' },
+  { value: 'flexibility', label: 'Flexibility / Recovery', ptsPerHour: 6, emoji: '🧘' },
+  { value: 'sports', label: 'Sports / Active', ptsPerHour: 10, emoji: '⚽' },
+  { value: 'other', label: 'Other', ptsPerHour: 8, emoji: '💪' },
 ] as const
 
 export type WorkoutType = typeof WORKOUT_TYPES[number]['value']
 
-export function getDurationMultiplier(minutes: number): number {
-  if (minutes < 30) return 0.75
-  if (minutes < 60) return 1.0
-  if (minutes < 90) return 1.25
-  return 1.5
-}
-
 export function calculatePoints(workoutType: WorkoutType, durationMinutes: number): number {
   const type = WORKOUT_TYPES.find(t => t.value === workoutType)
   if (!type) return 0
-  const multiplier = getDurationMultiplier(durationMinutes)
-  return Math.round(type.basePoints * multiplier)
+  return Math.max(1, Math.round(type.ptsPerHour * (durationMinutes / 60)))
+}
+
+// Keep for display purposes — shows pts/hr rate instead of multiplier
+export function getPtsPerHour(workoutType: WorkoutType): number {
+  return WORKOUT_TYPES.find(t => t.value === workoutType)?.ptsPerHour ?? 8
 }
 
 export const WEEKLY_GOAL = 50
 
 export function getWeekStart(date: Date = new Date()): Date {
   const d = new Date(date)
-  const day = d.getDay() // 0 = Sunday
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Monday
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   d.setDate(diff)
   d.setHours(0, 0, 0, 0)
   return d

@@ -61,6 +61,17 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(3)
 
+  // Pending wagers (not yet accepted by this user)
+  const { data: pendingWagers } = await supabase
+    .from('wagers')
+    .select('*, profiles(display_name), wager_acceptances(user_id)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+
+  const myPendingWagers = (pendingWagers || []).filter((w: any) =>
+    !w.wager_acceptances?.some((a: any) => a.user_id === user.id)
+  )
+
   const myWeekPoints = weekScores[user.id] || 0
   const progressPct = Math.min(100, (myWeekPoints / WEEKLY_GOAL) * 100)
 
@@ -131,6 +142,23 @@ export default async function DashboardPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {/* Pending wager alert */}
+        {myPendingWagers.length > 0 && (
+          <Link href="/wagers">
+            <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-2xl p-4 flex items-center gap-3">
+              <span className="text-2xl">💰</span>
+              <div className="flex-1">
+                <p className="text-yellow-300 font-semibold text-sm">
+                  {myPendingWagers.length === 1
+                    ? `New wager proposed: "${myPendingWagers[0].title}"`
+                    : `${myPendingWagers.length} wagers waiting for your response`}
+                </p>
+                <p className="text-yellow-600 text-xs mt-0.5">Tap to view and accept →</p>
+              </div>
+            </div>
+          </Link>
+        )}
+
         {/* Team Status — shown when there's an active team challenge wager */}
         {activeWagers && activeWagers.some((w: any) => w.condition_type === 'team_challenge') && (() => {
           const teamWager = activeWagers.find((w: any) => w.condition_type === 'team_challenge')
@@ -242,7 +270,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <BottomNav />
+      <BottomNav pendingWagerCount={myPendingWagers.length} />
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WORKOUT_TYPES, calculatePoints, getDurationMultiplier } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
 import BottomNav from '@/components/BottomNav'
 import type { WorkoutType } from '@/lib/points'
 
@@ -45,7 +45,7 @@ export default function LogWorkoutPage() {
   const [error, setError] = useState('')
 
   const detailedPoints = calculatePoints(workoutType, duration)
-  const multiplier = getDurationMultiplier(duration)
+  const ptsPerHour = getPtsPerHour(workoutType)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -272,7 +272,7 @@ export default function LogWorkoutPage() {
             <div className="bg-green-900/20 border border-green-700/40 rounded-2xl p-4 text-center">
               <p className="text-gray-400 text-sm">You'll earn</p>
               <p className="text-4xl font-bold text-green-400">{detailedPoints} pts</p>
-              <p className="text-gray-500 text-xs mt-1">{multiplier}x duration multiplier</p>
+              <p className="text-gray-500 text-xs mt-1">{ptsPerHour} pts/hour · scales with duration</p>
             </div>
 
             {/* Workout Type */}
@@ -292,7 +292,7 @@ export default function LogWorkoutPage() {
                   >
                     <div className="text-xl mb-1">{type.emoji}</div>
                     <div className="text-xs text-white leading-tight">{type.label}</div>
-                    <div className="text-xs text-gray-500">{type.basePoints} base pts</div>
+                    <div className="text-xs text-gray-500">{type.ptsPerHour} pts/hr</div>
                   </button>
                 ))}
               </div>

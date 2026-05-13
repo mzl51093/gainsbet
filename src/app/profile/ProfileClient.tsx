@@ -16,7 +16,7 @@ interface Props {
     weekGoal: number
   }
   recentWorkouts: Workout[]
-  workoutTypes: readonly { value: string; label: string; basePoints: number; emoji: string }[]
+  workoutTypes: readonly { value: string; label: string; ptsPerHour: number; emoji: string }[]
 }
 
 export default function ProfileClient({ profile, stats, recentWorkouts, workoutTypes }: Props) {
