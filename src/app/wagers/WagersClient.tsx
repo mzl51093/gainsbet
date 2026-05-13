@@ -114,6 +114,13 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     await fetchWagers()
   }
 
+  async function handleDelete(wagerId: string) {
+    if (!confirm('Delete this wager?')) return
+    const supabase = createClient()
+    await supabase.from('wagers').delete().eq('id', wagerId)
+    await fetchWagers()
+  }
+
   const activeWagers = wagers.filter(w => w.status === 'active' || w.status === 'pending')
   const resolvedWagers = wagers.filter(w => w.status === 'resolved' || w.status === 'expired')
 
@@ -256,7 +263,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
           <h2 className="text-white font-semibold mb-3">Active Wagers 🔥</h2>
           <div className="space-y-3">
             {activeWagers.map(wager => (
-              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve}
+              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve} onDelete={handleDelete}
                 allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
             ))}
           </div>
@@ -268,7 +275,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
           <h2 className="text-gray-500 font-semibold mb-3">Past Wagers</h2>
           <div className="space-y-3">
             {resolvedWagers.map(wager => (
-              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve}
+              <WagerCard key={wager.id} wager={wager} onResolve={handleResolve} onDelete={handleDelete}
                 allProfiles={allProfiles} isProposer={wager.proposed_by === currentUserId} />
             ))}
           </div>
@@ -286,9 +293,10 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   )
 }
 
-function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
+function WagerCard({ wager, onResolve, onDelete, allProfiles, isProposer }: {
   wager: any
   onResolve: (id: string, winner: 'competitors' | 'partners') => void
+  onDelete: (id: string) => void
   allProfiles: Profile[]
   isProposer: boolean
 }) {
@@ -372,15 +380,21 @@ function WagerCard({ wager, onResolve, allProfiles, isProposer }: {
         </div>
       )}
 
-      {wager.status === 'active' && isProposer && (
+      {isProposer && (
         <div className="flex gap-2 mt-3">
-          <button onClick={() => onResolve(wager.id, 'competitors')}
-            className="flex-1 bg-green-900/40 hover:bg-green-800 text-green-400 border border-green-700 py-2 rounded-xl text-xs font-medium transition-colors">
-            Team won ✓
-          </button>
-          <button onClick={() => onResolve(wager.id, 'partners')}
-            className="flex-1 bg-red-900/40 hover:bg-red-800 text-red-400 border border-red-700 py-2 rounded-xl text-xs font-medium transition-colors">
-            Partners won 💅
+          {wager.status === 'active' && (<>
+            <button onClick={() => onResolve(wager.id, 'competitors')}
+              className="flex-1 bg-green-900/40 hover:bg-green-800 text-green-400 border border-green-700 py-2 rounded-xl text-xs font-medium transition-colors">
+              Team won ✓
+            </button>
+            <button onClick={() => onResolve(wager.id, 'partners')}
+              className="flex-1 bg-red-900/40 hover:bg-red-800 text-red-400 border border-red-700 py-2 rounded-xl text-xs font-medium transition-colors">
+              Partners won 💅
+            </button>
+          </>)}
+          <button onClick={() => onDelete(wager.id)}
+            className="bg-gray-800 hover:bg-gray-700 text-gray-500 hover:text-red-400 border border-gray-700 px-3 py-2 rounded-xl text-xs transition-colors">
+            🗑
           </button>
         </div>
       )}
