@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     }
 
     const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 512,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
       system: `You are a fitness tracking assistant. Parse workout descriptions and return structured JSON.
 
 Workout types and their base points:
