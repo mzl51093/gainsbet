@@ -36,6 +36,8 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   const [stakeIfCompetitorsWin, setStakeIfCompetitorsWin] = useState('')
   const [teamPlayerIds, setTeamPlayerIds] = useState<string[]>([currentUserId])
   const [watcherIds, setWatcherIds] = useState<string[]>([])
+  const defaultEndDate = new Date(new Date(weekStart).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [endDate, setEndDate] = useState(defaultEndDate)
 
   const fetchWagers = useCallback(async () => {
     const supabase = createClient()
@@ -43,8 +45,39 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       .from('wagers')
       .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
       .order('created_at', { ascending: false })
-    if (error) setError('Fetch error: ' + error.message)
-    setWagers(data || [])
+    if (error) { setError('Fetch error: ' + error.message); setFetching(false); return }
+
+    // Auto-resolve expired wagers
+    const today = new Date().toISOString().split('T')[0]
+    const expired = (data || []).filter(w =>
+      w.status === 'active' && w.end_date && w.end_date < today && (w.team_player_ids || []).length > 0
+    )
+    for (const wager of expired) {
+      const { data: workouts } = await supabase
+        .from('workouts')
+        .select('user_id, points')
+        .in('user_id', wager.team_player_ids)
+        .gte('logged_at', wager.week_start)
+        .lte('logged_at', wager.end_date + 'T23:59:59.999Z')
+      const pts: Record<string, number> = {}
+      for (const w of (workouts || [])) pts[w.user_id] = (pts[w.user_id] || 0) + w.points
+      const allWon = wager.team_player_ids.every((id: string) => (pts[id] || 0) >= wager.point_threshold)
+      await supabase.from('wagers').update({
+        status: 'resolved',
+        winner: allWon ? 'competitors' : 'partners',
+        resolved_at: new Date().toISOString(),
+      }).eq('id', wager.id)
+    }
+
+    if (expired.length > 0) {
+      const { data: refreshed } = await supabase
+        .from('wagers')
+        .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
+        .order('created_at', { ascending: false })
+      setWagers(refreshed || [])
+    } else {
+      setWagers(data || [])
+    }
     setFetching(false)
   }, [])
 
@@ -80,6 +113,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       condition_type: conditionType,
       point_threshold: pointThreshold,
       week_start: weekStart.split('T')[0],
+      end_date: endDate,
       stake_if_partners_win: stakeIfPartnersWin,
       stake_if_competitors_win: stakeIfCompetitorsWin,
       team_player_ids: teamPlayerIds,
@@ -97,7 +131,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     // Reset form
     setShowForm(false)
     setTitle(''); setDescription(''); setStakeIfPartnersWin(''); setStakeIfCompetitorsWin('')
-    setTeamPlayerIds([currentUserId]); setWatcherIds([])
+    setTeamPlayerIds([currentUserId]); setWatcherIds([]); setEndDate(defaultEndDate)
     setLoading(false)
 
     // Re-fetch wagers to show the new one
@@ -144,6 +178,20 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
               placeholder="Week 3 Team Challenge" required
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Start Date</label>
+              <input type="date" value={weekStart.split('T')[0]} readOnly
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-gray-400 focus:outline-none cursor-not-allowed" />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">End Date</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                min={weekStart.split('T')[0]} required
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-500 transition-colors" />
+            </div>
           </div>
 
           {/* Participant assignment */}
@@ -318,6 +366,17 @@ function WagerCard({ wager, onResolve, onDelete, allProfiles, isProposer }: {
           <p className="text-xs text-gray-500 mt-0.5">
             By {wager.profiles?.display_name} · {formatDate(wager.created_at)}
           </p>
+          {wager.end_date && (
+            <p className="text-xs text-gray-600 mt-0.5">
+              📅 {wager.week_start} → {wager.end_date}
+              {wager.status === 'active' && (() => {
+                const daysLeft = Math.ceil((new Date(wager.end_date).getTime() - Date.now()) / 86400000)
+                return daysLeft > 0
+                  ? <span className="text-yellow-600 ml-1">· {daysLeft}d left</span>
+                  : <span className="text-red-500 ml-1">· resolving...</span>
+              })()}
+            </p>
+          )}
         </div>
         <span className={cn('text-xs px-2 py-1 rounded-full font-medium shrink-0',
           wager.status === 'active' ? 'bg-green-900/40 text-green-400' :

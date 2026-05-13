@@ -1,11 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { getWeekStart, getWeekEnd, WEEKLY_GOAL, formatWeekRange, WORKOUT_TYPES } from '@/lib/points'
-import { formatRelativeTime } from '@/lib/utils'
-import type { Workout, Profile } from '@/lib/types'
+import { getWeekStart, getWeekEnd, WEEKLY_GOAL, formatWeekRange } from '@/lib/points'
+import type { Profile } from '@/lib/types'
 import Link from 'next/link'
-import ProofViewer from '@/components/ProofViewer'
+import ActivityFeedClient from '@/components/ActivityFeedClient'
 
 export const revalidate = 0
 
@@ -214,49 +213,10 @@ export default async function DashboardPage() {
         <div>
           <h2 className="text-white font-semibold mb-3">Activity Feed</h2>
           {recentWorkouts && recentWorkouts.length > 0 ? (
-            <div className="space-y-3">
-              {recentWorkouts.map((workout: Workout & { profiles: Profile }) => {
-                const wType = WORKOUT_TYPES.find(t => t.value === workout.workout_type)
-                const reactionCount = (workout.workout_reactions || []).length
-
-                return (
-                  <div key={workout.id} className="bg-gray-900 rounded-2xl p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{wType?.emoji || '💪'}</span>
-                        <div>
-                          <p className="text-white font-medium text-sm">
-                            {workout.profiles?.display_name || 'Unknown'}
-                          </p>
-                          <p className="text-gray-500 text-xs">
-                            {wType?.label} · {workout.duration_minutes}min
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-green-400 font-bold">+{workout.points}</span>
-                        <p className="text-xs text-gray-600">{formatRelativeTime(workout.logged_at)}</p>
-                      </div>
-                    </div>
-                    {workout.notes && (
-                      <p className="text-gray-400 text-sm mt-2 ml-8">{workout.notes}</p>
-                    )}
-                    {workout.proof_url && (
-                      <div className="mt-2 ml-8">
-                        <ProofViewer proofUrl={workout.proof_url} proofType={workout.proof_type} />
-                      </div>
-                    )}
-                    {reactionCount > 0 && (
-                      <div className="mt-2 ml-8 flex gap-1">
-                        {(workout.workout_reactions || []).slice(0, 5).map((r: any) => (
-                          <span key={r.id} className="text-sm">{r.emoji}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <ActivityFeedClient
+              initialWorkouts={recentWorkouts as any}
+              currentUserId={user.id}
+            />
           ) : (
             <div className="bg-gray-900 rounded-2xl p-8 text-center">
               <p className="text-gray-500">No workouts yet this week.</p>
