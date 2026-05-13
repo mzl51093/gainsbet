@@ -1,5 +1,6 @@
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
+import WorkoutPlanButton from './WorkoutPlanButton'
 
 interface WorkerProgress {
   profile: Profile
@@ -145,6 +146,17 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
       {nudge && (
         <div className="bg-gray-800/60 rounded-xl px-3 py-2 mb-3">
           <p className="text-xs text-gray-300">{nudge}</p>
+        </div>
+      )}
+
+      {/* Workout plan — only show if worker still needs points */}
+      {me && me.points < challenge.threshold && challenge.daysLeft >= 0 && (
+        <div className="mb-3">
+          <WorkoutPlanButton
+            pointsNeeded={Math.max(1, challenge.threshold - me.points)}
+            hoursLeft={challenge.daysLeft * 24}
+            daysLeft={challenge.daysLeft}
+          />
         </div>
       )}
 

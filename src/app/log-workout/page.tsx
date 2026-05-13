@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
 import BottomNav from '@/components/BottomNav'
@@ -23,8 +23,16 @@ interface ParsedWorkout {
 
 export default function LogWorkoutPage() {
   const router = useRouter()
+  const params = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [tab, setTab] = useState<'quick' | 'detailed'>('quick')
+
+  // Pre-fill from URL params (e.g. from workout plan recommendations)
+  const paramType = (params.get('type') || 'strength') as WorkoutType
+  const paramDuration = Number(params.get('duration') || 45)
+  const paramNotes = params.get('notes') || ''
+  const hasParams = params.has('type')
+
+  const [tab, setTab] = useState<'quick' | 'detailed'>(hasParams ? 'detailed' : 'quick')
 
   // Quick log state
   const [quickText, setQuickText] = useState('')
@@ -33,9 +41,9 @@ export default function LogWorkoutPage() {
   const [parseError, setParseError] = useState('')
 
   // Detailed log state
-  const [workoutType, setWorkoutType] = useState<WorkoutType>('strength')
-  const [duration, setDuration] = useState(45)
-  const [notes, setNotes] = useState('')
+  const [workoutType, setWorkoutType] = useState<WorkoutType>(paramType)
+  const [duration, setDuration] = useState(paramDuration)
+  const [notes, setNotes] = useState(paramNotes)
 
   // Shared state
   const [proofType, setProofType] = useState('photo')
