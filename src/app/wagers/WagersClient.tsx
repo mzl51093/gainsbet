@@ -39,10 +39,11 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
 
   const fetchWagers = useCallback(async () => {
     const supabase = createClient()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('wagers')
       .select('*, profiles(display_name, username), wager_acceptances(user_id)')
       .order('created_at', { ascending: false })
+    if (error) setError('Fetch error: ' + error.message)
     setWagers(data || [])
     setFetching(false)
   }, [])
@@ -88,6 +89,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
 
     if (insertError) {
       setError(insertError.message)
+      alert('Insert failed: ' + insertError.message)
       setLoading(false)
       return
     }
