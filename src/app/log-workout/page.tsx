@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
@@ -21,7 +21,7 @@ interface ParsedWorkout {
   summary: string
 }
 
-export default function LogWorkoutPage() {
+function LogWorkoutInner() {
   const router = useRouter()
   const params = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -431,4 +431,12 @@ export default function LogWorkoutPage() {
       </div>
     )
   }
+}
+
+export default function LogWorkoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <LogWorkoutInner />
+    </Suspense>
+  )
 }
