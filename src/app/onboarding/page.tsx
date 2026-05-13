@@ -8,7 +8,6 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
-  const [role, setRole] = useState<'competitor' | 'partner'>('competitor')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -23,7 +22,7 @@ export default function OnboardingPage() {
 
     const { error } = await supabase
       .from('profiles')
-      .update({ display_name: displayName, username: username.toLowerCase(), role })
+      .update({ display_name: displayName, username: username.toLowerCase(), role: 'competitor' })
       .eq('id', user.id)
 
     if (error) {
@@ -68,38 +67,6 @@ export default function OnboardingPage() {
               maxLength={20}
               className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">I am a...</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('competitor')}
-                className={`p-4 rounded-xl border-2 transition-colors text-left ${
-                  role === 'competitor'
-                    ? 'border-green-500 bg-green-500/10'
-                    : 'border-gray-700 bg-gray-900'
-                }`}
-              >
-                <div className="text-2xl mb-1">🏋️</div>
-                <div className="text-white font-medium text-sm">Competitor</div>
-                <div className="text-gray-500 text-xs">I log workouts & compete</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('partner')}
-                className={`p-4 rounded-xl border-2 transition-colors text-left ${
-                  role === 'partner'
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : 'border-gray-700 bg-gray-900'
-                }`}
-              >
-                <div className="text-2xl mb-1">👀</div>
-                <div className="text-white font-medium text-sm">Accountability Partner</div>
-                <div className="text-gray-500 text-xs">I watch, judge & wager</div>
-              </button>
-            </div>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}

@@ -5,6 +5,7 @@ import { getWeekStart, getWeekEnd, WEEKLY_GOAL, formatWeekRange, WORKOUT_TYPES }
 import { formatRelativeTime } from '@/lib/utils'
 import type { Workout, Profile } from '@/lib/types'
 import Link from 'next/link'
+import ProofViewer from '@/components/ProofViewer'
 
 export const revalidate = 0
 
@@ -24,11 +25,10 @@ export default async function DashboardPage() {
   const weekStart = getWeekStart()
   const weekEnd = getWeekEnd()
 
-  // Get all competitors
+  // Get all profiles (everyone can compete)
   const { data: competitors } = await supabase
     .from('profiles')
     .select('*')
-    .eq('role', 'competitor')
     .order('display_name')
 
   // Get weekly scores for all competitors
@@ -243,9 +243,7 @@ export default async function DashboardPage() {
                     )}
                     {workout.proof_url && (
                       <div className="mt-2 ml-8">
-                        <span className="text-xs text-blue-400 flex items-center gap-1">
-                          📸 Proof submitted
-                        </span>
+                        <ProofViewer proofUrl={workout.proof_url} proofType={workout.proof_type} />
                       </div>
                     )}
                     {reactionCount > 0 && (
