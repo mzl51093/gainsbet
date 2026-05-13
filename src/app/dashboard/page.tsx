@@ -131,6 +131,37 @@ export default async function DashboardPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {/* Team Status — shown when there's an active team challenge wager */}
+        {activeWagers && activeWagers.some((w: any) => w.condition_type === 'team_challenge') && (() => {
+          const teamWager = activeWagers.find((w: any) => w.condition_type === 'team_challenge')
+          const threshold = teamWager.point_threshold
+          const allPassing = (competitors || []).every((c: Profile) => (weekScores[c.id] || 0) >= threshold)
+          const anyFailing = (competitors || []).some((c: Profile) => (weekScores[c.id] || 0) < threshold)
+          return (
+            <div className={`rounded-2xl p-4 border ${allPassing ? 'bg-green-900/20 border-green-700/50' : anyFailing ? 'bg-red-900/20 border-red-700/50' : 'bg-orange-900/20 border-orange-700/50'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">🤝</span>
+                <div>
+                  <p className="text-white font-semibold text-sm">Team Challenge Active</p>
+                  <p className="text-xs text-gray-400">{teamWager.title}</p>
+                </div>
+                <div className="ml-auto">
+                  {allPassing
+                    ? <span className="text-green-400 text-xs font-bold">ON TRACK ✓</span>
+                    : <span className="text-red-400 text-xs font-bold">AT RISK ⚠</span>}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mb-1">
+                Both players need <span className="text-white font-semibold">{threshold} pts</span> — if either falls short, the wives win.
+              </p>
+              <p className="text-xs">
+                <span className="text-red-400 font-medium">Wives win: </span>
+                <span className="text-gray-300">{teamWager.stake_if_partners_win}</span>
+              </p>
+            </div>
+          )
+        })()}
+
         {/* Active Wagers */}
         {activeWagers && activeWagers.length > 0 && (
           <div>
