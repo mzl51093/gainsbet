@@ -1,34 +1,52 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+type Mode = 'signin' | 'signup'
+
 export default function AuthPage() {
+  const router = useRouter()
+  const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccess('')
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
+    if (mode === 'signup') {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess('Account created! Check your email to confirm, or just sign in below if confirmation is disabled.')
+        setMode('signin')
+      }
     } else {
-      setSent(true)
-      setLoading(false)
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
+      } else {
+        router.push('/dashboard')
+      }
     }
+
+    setLoading(false)
   }
 
   return (
@@ -37,55 +55,70 @@ export default function AuthPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🏆</div>
           <h1 className="text-2xl font-bold text-white">GainsBet</h1>
-          <p className="text-gray-400 text-sm mt-1">Sign in to compete</p>
+          <p className="text-gray-400 text-sm mt-1">
+            {mode === 'signin' ? 'Sign in to compete' : 'Create your account'}
+          </p>
         </div>
 
-        {sent ? (
-          <div className="bg-green-900/30 border border-green-700 rounded-2xl p-6 text-center">
-            <div className="text-3xl mb-3">📬</div>
-            <h2 className="text-white font-semibold mb-2">Check your email</h2>
-            <p className="text-gray-400 text-sm">
-              We sent a magic link to <span className="text-white font-medium">{email}</span>.
-              Click it to sign in — no password needed.
-            </p>
-            <button
-              onClick={() => { setSent(false); setEmail('') }}
-              className="mt-4 text-sm text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              Use a different email
-            </button>
+        {/* Tab toggle */}
+        <div className="flex bg-gray-900 rounded-xl p-1 mb-6">
+          <button
+            type="button"
+            onClick={() => { setMode('signin'); setError(''); setSuccess('') }}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === 'signin' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('signup'); setError(''); setSuccess('') }}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === 'signup' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Email address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Email address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
 
-            {error && (
-              <p className="text-red-400 text-sm">{error}</p>
-            )}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
+            />
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
-            >
-              {loading ? 'Sending...' : 'Send Magic Link'}
-            </button>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {success && <p className="text-green-400 text-sm">{success}</p>}
 
-            <p className="text-center text-xs text-gray-600">
-              A sign-in link will be emailed to you. No password required.
-            </p>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
+          >
+            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
       </div>
     </div>
   )
