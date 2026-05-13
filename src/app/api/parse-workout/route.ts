@@ -38,7 +38,9 @@ Always respond with ONLY valid JSON, no explanation. Example:
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const parsed = JSON.parse(text.trim())
+    // Strip markdown code blocks if Claude wrapped the JSON
+    const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const parsed = JSON.parse(cleaned)
 
     const workoutType: WorkoutType = VALID_TYPES.includes(parsed.workout_type)
       ? parsed.workout_type
