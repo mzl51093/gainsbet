@@ -146,7 +146,7 @@ export default async function DashboardPage() {
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
     .from('workouts')
-    .select('*, profiles(display_name, username), workout_reactions(*)')
+    .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
     .order('logged_at', { ascending: false })
     .limit(10)
 

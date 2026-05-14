@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDate, cn } from '@/lib/utils'
 import { WEEKLY_GOAL } from '@/lib/points'
 import type { Profile } from '@/lib/types'
+import CommentsSection from '@/components/CommentsSection'
 
 const CONDITION_SHORT: Record<string, string> = {
   team_challenge: 'Team loses if either player misses',
@@ -343,6 +344,15 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
           {wager.winner === 'competitors' ? '🏆 Team won!' : '💅 Partners won!'}
         </div>
       )}
+
+      {/* Trash talk */}
+      <div className="mb-3">
+        <CommentsSection
+          targetId={wager.id}
+          targetType="wager"
+          currentUserId={currentUserId}
+        />
+      </div>
 
       {/* Accept / Decline buttons */}
       {canRespond && (

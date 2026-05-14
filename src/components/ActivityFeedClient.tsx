@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatRelativeTime } from '@/lib/utils'
 import { WORKOUT_TYPES, calculatePoints } from '@/lib/points'
 import ProofViewer from './ProofViewer'
+import CommentsSection from './CommentsSection'
 import type { Workout, Profile } from '@/lib/types'
 
 type WorkoutWithRelations = Workout & { profiles: Profile; workout_reactions: any[] }
@@ -151,6 +152,14 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId }: P
                     ))}
                   </div>
                 )}
+                <div className="ml-8">
+                  <CommentsSection
+                    targetId={workout.id}
+                    targetType="workout"
+                    currentUserId={currentUserId}
+                    initialCount={(workout.workout_comments || []).length}
+                  />
+                </div>
               </>
             )}
           </div>
