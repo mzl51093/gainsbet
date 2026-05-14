@@ -70,6 +70,8 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId }: P
         const reactionCount = (workout.workout_reactions || []).length
         const isOwn = workout.user_id === currentUserId
         const isEditing = editingId === workout.id
+        const loggedHour = new Date(workout.logged_at).getHours()
+        const wasEarlyBird = loggedHour >= 6 && loggedHour < 9
 
         return (
           <div key={workout.id} className="bg-gray-900 rounded-2xl p-4">
@@ -120,7 +122,14 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId }: P
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="text-right">
-                      <span className="text-green-400 font-bold">+{workout.points}</span>
+                      <div className="flex items-center gap-1 justify-end">
+                        {wasEarlyBird && (
+                          <span className="text-xs bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded-md font-medium">
+                            🌅 1.5x
+                          </span>
+                        )}
+                        <span className="text-green-400 font-bold">+{workout.points}</span>
+                      </div>
                       <p className="text-xs text-gray-600">{formatRelativeTime(workout.logged_at)}</p>
                     </div>
                     {isOwn && (

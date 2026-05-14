@@ -210,7 +210,7 @@ function LogWorkoutInner() {
             <span className="text-2xl">🌅</span>
             <div>
               <p className="text-yellow-300 font-bold text-sm">Early Bird Special!</p>
-              <p className="text-yellow-600 text-xs">6–9 AM bonus active — all points are 1.5x today</p>
+              <p className="text-yellow-600 text-xs">Log now for 1.5x points — expires at 9 AM</p>
             </div>
           </div>
         )}
