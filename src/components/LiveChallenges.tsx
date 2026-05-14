@@ -1,6 +1,7 @@
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import WorkoutPlanButton from './WorkoutPlanButton'
+import CountdownTimer from './CountdownTimer'
 
 interface WorkerProgress {
   profile: Profile
@@ -16,12 +17,14 @@ interface ChallengeData {
   threshold: number
   weekStart: string
   endDate: string | null
+  endTimestamp: number | null
   daysLeft: number
   daysTotal: number
   daysElapsed: number
   stakeIfMotivators: string
   stakeIfWorkers: string
   workers: WorkerProgress[]
+  motivators: Profile[]
   isWorker: boolean
   isMotivator: boolean
 }
@@ -77,7 +80,6 @@ function pick(arr: string[], seed: string) {
 
 function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: string }) {
   const me = challenge.workers.find(w => w.profile.id === userId)
-  const others = challenge.workers.filter(w => w.profile.id !== userId)
   const allOnTrack = challenge.workers.every(w => w.onTrack)
   const anyAtRisk = challenge.workers.some(w => !w.onTrack)
   const ptsNeeded = me ? Math.max(0, challenge.threshold - me.points) : 0
@@ -92,81 +94,115 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
     else nudge = pick(WORKER_NUDGES_RED, seed)
   }
 
-  const statusColor = allOnTrack ? 'border-green-700/50 bg-green-900/10' : anyAtRisk ? 'border-red-700/50 bg-red-900/10' : 'border-yellow-700/50 bg-yellow-900/10'
+  const statusBorder = allOnTrack ? 'border-green-700/50' : anyAtRisk ? 'border-red-700/50' : 'border-yellow-700/50'
 
   return (
-    <div className={`rounded-2xl p-4 border ${statusColor}`}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-base">💪</span>
-            <h3 className="text-white font-bold text-sm">{challenge.title}</h3>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {challenge.daysLeft > 1
-              ? `${challenge.daysLeft} days left`
-              : challenge.daysLeft === 1
-              ? 'Last day! 🔥'
-              : 'Final hours! 🔥'}
-            {challenge.endDate && ` · ends ${challenge.endDate}`}
-          </p>
-        </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-full ${allOnTrack ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
-          {allOnTrack ? 'ON TRACK ✓' : 'AT RISK ⚠'}
-        </span>
-      </div>
-
-      {/* Worker progress bars */}
-      <div className="space-y-3 mb-3">
-        {challenge.workers.map(w => {
-          const isMe = w.profile.id === userId
-          return (
-            <div key={w.profile.id}>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-400">{isMe ? '👤 You' : w.profile.display_name.split(' ')[0]}</span>
-                  {!w.onTrack && <span className="text-xs text-red-400">⚠</span>}
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className={`text-sm font-bold ${w.onTrack ? 'text-green-400' : 'text-red-400'}`}>{w.points}</span>
-                  <span className="text-gray-600 text-xs">/ {challenge.threshold}</span>
-                </div>
-              </div>
-              <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${w.pct >= 100 ? 'bg-green-500' : w.onTrack ? 'bg-blue-500' : 'bg-red-500'}`}
-                  style={{ width: `${Math.min(100, w.pct)}%` }}
-                />
-              </div>
-              {isMe && w.points < challenge.threshold && (
-                <p className="text-xs text-gray-600 mt-0.5">
-                  Projected: <span className={w.projected >= challenge.threshold ? 'text-green-400' : 'text-red-400'}>{w.projected} pts</span>
-                  {ptsNeeded > 0 && ` · need ${ptsNeeded} more`}
-                  {challenge.daysLeft > 0 && ptsPerDay > 0 && ` (${ptsPerDay} pts/day)`}
-                </p>
-              )}
+    <div className={`rounded-2xl border ${statusBorder} bg-gray-900 overflow-hidden`}>
+      {/* Top bar: title + status */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-800">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">💪</span>
+              <h3 className="text-white font-bold text-base">{challenge.title}</h3>
             </div>
-          )
-        })}
+            <p className="text-xs text-gray-500 mt-0.5">
+              {challenge.daysLeft > 1
+                ? `${challenge.daysLeft} days left`
+                : challenge.daysLeft === 1
+                ? 'Last day! 🔥'
+                : 'Final hours! 🔥'}
+              {challenge.endDate && ` · ends ${challenge.endDate}`}
+            </p>
+          </div>
+          <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${
+            allOnTrack ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
+          }`}>
+            {allOnTrack ? 'ON TRACK ✓' : 'AT RISK ⚠'}
+          </span>
+        </div>
+
+        {/* Countdown */}
+        {challenge.endTimestamp && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-gray-600 text-xs">⏱</span>
+            <CountdownTimer endTimestamp={challenge.endTimestamp} />
+            <span className="text-gray-600 text-xs">remaining</span>
+          </div>
+        )}
       </div>
 
-      {/* Nudge */}
-      {nudge && (
-        <div className={`rounded-xl px-3 py-2.5 mb-3 border-l-4 ${
-          allOnTrack
-            ? 'bg-green-900/20 border-green-500'
-            : anyAtRisk
-            ? 'bg-red-900/20 border-red-500'
-            : 'bg-gray-800/60 border-gray-600'
-        }`}>
-          <p className="text-xs text-gray-200 leading-relaxed">{nudge}</p>
+      {/* Workers */}
+      <div className="px-4 py-3 border-b border-gray-800">
+        <p className="text-xs text-gray-600 uppercase tracking-wide mb-2">Workers</p>
+        <div className="space-y-3">
+          {challenge.workers.map(w => {
+            const isMe = w.profile.id === userId
+            return (
+              <div key={w.profile.id}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400">
+                      {isMe ? '👤 You' : w.profile.display_name.split(' ')[0]}
+                    </span>
+                    {!w.onTrack && <span className="text-xs text-red-400">⚠</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={`text-sm font-bold ${w.onTrack ? 'text-green-400' : 'text-red-400'}`}>
+                      {w.points}
+                    </span>
+                    <span className="text-gray-600 text-xs">/ {challenge.threshold}</span>
+                  </div>
+                </div>
+                <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      w.pct >= 100 ? 'bg-green-500' : w.onTrack ? 'bg-blue-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(100, w.pct)}%` }}
+                  />
+                </div>
+                {isMe && w.points < challenge.threshold && (
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Projected: <span className={w.projected >= challenge.threshold ? 'text-green-400' : 'text-red-400'}>
+                      {w.projected} pts
+                    </span>
+                    {ptsNeeded > 0 && ` · need ${ptsNeeded} more`}
+                    {challenge.daysLeft > 0 && ptsPerDay > 0 && ` (${ptsPerDay}/day)`}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Motivators */}
+      {challenge.motivators.length > 0 && (
+        <div className="px-4 py-3 border-b border-gray-800">
+          <p className="text-xs text-gray-600 uppercase tracking-wide mb-1.5">Motivators</p>
+          <div className="flex flex-wrap gap-2">
+            {challenge.motivators.map(m => (
+              <span key={m.id} className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg">
+                💅 {m.display_name.split(' ')[0]}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Workout plan — only show if worker still needs points */}
+      {/* Nudge */}
+      {nudge && (
+        <div className={`px-4 py-3 border-b border-gray-800 border-l-4 ${
+          allOnTrack ? 'border-l-green-500' : anyAtRisk ? 'border-l-red-500' : 'border-l-gray-600'
+        }`}>
+          <p className="text-xs text-gray-300 leading-relaxed">{nudge}</p>
+        </div>
+      )}
+
+      {/* Workout plan */}
       {me && me.points < challenge.threshold && challenge.daysLeft >= 0 && (
-        <div className="mb-3">
+        <div className="px-4 py-3 border-b border-gray-800">
           <WorkoutPlanButton
             pointsNeeded={Math.max(1, challenge.threshold - me.points)}
             hoursLeft={Math.max(4, challenge.daysLeft * 24)}
@@ -176,13 +212,15 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
       )}
 
       {/* Stakes */}
-      <div className="flex gap-2 text-xs">
-        <span className="text-gray-600">If you win:</span>
-        <span className="text-green-400 font-medium flex-1">{challenge.stakeIfWorkers}</span>
-      </div>
-      <div className="flex gap-2 text-xs mt-0.5">
-        <span className="text-gray-600">If they win:</span>
-        <span className="text-red-400 font-medium flex-1">{challenge.stakeIfMotivators}</span>
+      <div className="px-4 py-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-gray-600 mb-0.5">If workers win</p>
+          <p className="text-green-400 text-xs font-medium">{challenge.stakeIfWorkers}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 mb-0.5">If motivators win</p>
+          <p className="text-red-400 text-xs font-medium">{challenge.stakeIfMotivators}</p>
+        </div>
       </div>
     </div>
   )
@@ -199,64 +237,85 @@ function MotivatorCard({ challenge, userId }: { challenge: ChallengeData; userId
   else if (anyAtRisk) nudge = pick(MOTIVATOR_BEHIND, seed)
   else nudge = pick(MOTIVATOR_ON_TRACK, seed)
 
-  const statusColor = allAtRisk ? 'border-purple-700/50 bg-purple-900/10' : anyAtRisk ? 'border-purple-700/30 bg-purple-900/5' : 'border-gray-700 bg-gray-900/50'
+  const statusBorder = allAtRisk ? 'border-purple-700/50' : anyAtRisk ? 'border-purple-700/30' : 'border-gray-700'
 
   return (
-    <div className={`rounded-2xl p-4 border ${statusColor}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-base">💅</span>
-            <h3 className="text-white font-bold text-sm">{challenge.title}</h3>
+    <div className={`rounded-2xl border ${statusBorder} bg-gray-900 overflow-hidden`}>
+      {/* Top bar */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-800">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-base">💅</span>
+              <h3 className="text-white font-bold text-base">{challenge.title}</h3>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {challenge.daysLeft > 1
+                ? `${challenge.daysLeft} days left`
+                : challenge.daysLeft === 1
+                ? 'Last day! 🔥'
+                : 'Final hours! 🔥'}
+              {' · '}
+              <span className={allOnTrack ? 'text-gray-400' : 'text-purple-400'}>
+                {allAtRisk ? "They're struggling 👀" : anyAtRisk ? 'One is slipping...' : "They're on track 😤"}
+              </span>
+            </p>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {challenge.daysLeft > 1 ? `${challenge.daysLeft} days left` : challenge.daysLeft === 1 ? 'Last day! 🔥' : 'Final hours! 🔥'}
-            {' · '}
-            <span className={allOnTrack ? 'text-gray-400' : 'text-purple-400'}>
-              {allAtRisk ? 'They\'re struggling 👀' : anyAtRisk ? 'One is slipping...' : 'They\'re on track 😤'}
+          {allAtRisk && (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-purple-900/40 text-purple-400 shrink-0">
+              YOUR WIN 💅
             </span>
-          </p>
+          )}
         </div>
-        {allAtRisk && (
-          <span className="text-xs font-bold px-2 py-1 rounded-full bg-purple-900/40 text-purple-400">YOUR WIN 💅</span>
+
+        {/* Countdown */}
+        {challenge.endTimestamp && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-gray-600 text-xs">⏱</span>
+            <CountdownTimer endTimestamp={challenge.endTimestamp} />
+            <span className="text-gray-600 text-xs">remaining</span>
+          </div>
         )}
       </div>
 
-      {/* Worker progress bars - motivator view */}
-      <div className="space-y-3 mb-3">
-        {challenge.workers.map(w => (
-          <div key={w.profile.id}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-400">{w.profile.display_name.split(' ')[0]}</span>
-              <div className="flex items-center gap-1">
-                <span className={`text-sm font-bold ${w.onTrack ? 'text-blue-400' : 'text-red-400'}`}>{w.points}</span>
-                <span className="text-gray-600 text-xs">/ {challenge.threshold}</span>
-                <span className="text-xs ml-1">{w.onTrack ? '😤' : '😬'}</span>
+      {/* Worker progress */}
+      <div className="px-4 py-3 border-b border-gray-800">
+        <p className="text-xs text-gray-600 uppercase tracking-wide mb-2">Workers</p>
+        <div className="space-y-3">
+          {challenge.workers.map(w => (
+            <div key={w.profile.id}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">{w.profile.display_name.split(' ')[0]}</span>
+                <div className="flex items-center gap-1">
+                  <span className={`text-sm font-bold ${w.onTrack ? 'text-blue-400' : 'text-red-400'}`}>
+                    {w.points}
+                  </span>
+                  <span className="text-gray-600 text-xs">/ {challenge.threshold}</span>
+                  <span className="text-xs ml-1">{w.onTrack ? '😤' : '😬'}</span>
+                </div>
+              </div>
+              <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${w.onTrack ? 'bg-blue-600' : 'bg-red-600'}`}
+                  style={{ width: `${Math.min(100, w.pct)}%` }}
+                />
               </div>
             </div>
-            <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full ${w.onTrack ? 'bg-blue-600' : 'bg-red-600'}`}
-                style={{ width: `${Math.min(100, w.pct)}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Motivator nudge */}
-      <div className={`rounded-xl px-3 py-2.5 mb-3 border-l-4 ${
-        allAtRisk ? 'bg-purple-900/30 border-purple-400' :
-        anyAtRisk ? 'bg-purple-900/20 border-purple-600' :
-        'bg-gray-800/60 border-gray-600'
+      {/* Nudge */}
+      <div className={`px-4 py-3 border-b border-gray-800 border-l-4 ${
+        allAtRisk ? 'border-l-purple-400' : anyAtRisk ? 'border-l-purple-600' : 'border-l-gray-600'
       }`}>
-        <p className="text-xs text-gray-200 leading-relaxed">{nudge}</p>
+        <p className="text-xs text-gray-300 leading-relaxed">{nudge}</p>
       </div>
 
       {/* Prize */}
-      <div className="flex gap-2 text-xs">
-        <span className="text-gray-600">Your prize if they slip:</span>
-        <span className="text-purple-300 font-medium flex-1">{challenge.stakeIfMotivators}</span>
+      <div className="px-4 py-3">
+        <p className="text-xs text-gray-600 mb-0.5">Your prize if they slip</p>
+        <p className="text-purple-300 text-xs font-medium">{challenge.stakeIfMotivators}</p>
       </div>
     </div>
   )
@@ -269,23 +328,28 @@ export default function LiveChallenges({
   challenges: ChallengeData[]
   currentUserId: string
 }) {
-  if (challenges.length === 0) return null
+  if (challenges.length === 0) {
+    return (
+      <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
+        <p className="text-3xl mb-3">🏆</p>
+        <p className="text-white font-semibold">No live competitions</p>
+        <p className="text-gray-500 text-sm mt-1">Create a wager to get the competition going.</p>
+        <Link href="/wagers" className="inline-block mt-4 text-green-400 text-sm hover:text-green-300">
+          Create a challenge →
+        </Link>
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-white font-semibold">Live Challenges 🔥</h2>
-        <Link href="/wagers" className="text-sm text-gray-500 hover:text-gray-300">See all</Link>
-      </div>
-      <div className="space-y-3">
-        {challenges.map(c =>
-          c.isWorker
-            ? <WorkerCard key={c.id} challenge={c} userId={currentUserId} />
-            : c.isMotivator
-            ? <MotivatorCard key={c.id} challenge={c} userId={currentUserId} />
-            : null
-        )}
-      </div>
+    <div className="space-y-4">
+      {challenges.map(c =>
+        c.isWorker
+          ? <WorkerCard key={c.id} challenge={c} userId={currentUserId} />
+          : c.isMotivator
+          ? <MotivatorCard key={c.id} challenge={c} userId={currentUserId} />
+          : null
+      )}
     </div>
   )
 }

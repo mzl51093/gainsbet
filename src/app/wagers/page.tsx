@@ -83,18 +83,24 @@ export default async function WagersPage() {
           }
         })
 
+      const motivators = (w.watcher_ids || [])
+        .filter((id: string) => profileMap[id])
+        .map((id: string) => profileMap[id])
+
       return {
         id: w.id,
         title: w.title,
         threshold: w.point_threshold,
         weekStart: w.week_start,
         endDate: w.end_date,
+        endTimestamp: endMidnight ? endMidnight.getTime() : null,
         daysLeft,
         daysTotal,
         daysElapsed,
         stakeIfMotivators: w.stake_if_partners_win,
         stakeIfWorkers: w.stake_if_competitors_win,
         workers,
+        motivators,
         isWorker: (w.team_player_ids || []).includes(user.id),
         isMotivator: (w.watcher_ids || []).includes(user.id),
       }

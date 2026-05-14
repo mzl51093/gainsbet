@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { getWeekStart, getWeekEnd, WEEKLY_GOAL, formatWeekRange } from '@/lib/points'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
@@ -22,10 +21,7 @@ export default async function DashboardPage() {
 
   if (!profile) redirect('/onboarding')
 
-  const weekStart = getWeekStart()
-  const weekEnd = getWeekEnd()
-
-  // All profiles
+  // All profiles for name lookups
   const { data: allProfiles } = await supabase
     .from('profiles')
     .select('*')
@@ -33,20 +29,6 @@ export default async function DashboardPage() {
 
   const profileMap: Record<string, Profile> = {}
   for (const p of (allProfiles || [])) profileMap[p.id] = p
-
-  // Weekly leaderboard scores (all users, current week)
-  const allIds = (allProfiles || []).map((p: Profile) => p.id)
-  const { data: weekWorkouts } = await supabase
-    .from('workouts')
-    .select('user_id, points')
-    .in('user_id', allIds)
-    .gte('logged_at', weekStart.toISOString())
-    .lte('logged_at', weekEnd.toISOString())
-
-  const weekScores: Record<string, number> = {}
-  for (const w of (weekWorkouts || [])) {
-    weekScores[w.user_id] = (weekScores[w.user_id] || 0) + w.points
-  }
 
   // Active challenges
   const { data: activeWagers } = await supabase
@@ -66,14 +48,12 @@ export default async function DashboardPage() {
     !w.wager_acceptances?.some((a: any) => a.user_id === user.id)
   )
 
-  // Build challenge data for LiveChallenges component
+  // Build challenge data
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Collect all worker IDs across active challenges
   const allWorkerIds = [...new Set((activeWagers || []).flatMap((w: any) => w.team_player_ids || []))] as string[]
 
-  // Get all relevant workout points across all challenges
   const earliestStart = (activeWagers || []).reduce(
     (min: string, w: any) => (w.week_start < min ? w.week_start : min),
     new Date().toISOString().split('T')[0]
@@ -100,7 +80,6 @@ export default async function DashboardPage() {
       const daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1)
       const daysLeft = endMidnight ? Math.max(0, Math.round((endMidnight.getTime() - today.getTime()) / 86400000)) : 0
 
-      // Points per worker within this wager's window
       const workerPts: Record<string, number> = {}
       for (const workout of (challengeWorkouts || [])) {
         const loggedAt = new Date(workout.logged_at)
@@ -115,8 +94,7 @@ export default async function DashboardPage() {
         .map((id: string) => {
           const pts = workerPts[id] || 0
           const pct = Math.min(100, (pts / w.point_threshold) * 100)
-          const ptsPerDayElapsed = pts / daysElapsed
-          const projected = Math.round(ptsPerDayElapsed * daysTotal)
+          const projected = Math.round((pts / daysElapsed) * daysTotal)
           return {
             profile: profileMap[id],
             points: pts,
@@ -126,18 +104,24 @@ export default async function DashboardPage() {
           }
         })
 
+      const motivators = (w.watcher_ids || [])
+        .filter((id: string) => profileMap[id])
+        .map((id: string) => profileMap[id])
+
       return {
         id: w.id,
         title: w.title,
         threshold: w.point_threshold,
         weekStart: w.week_start,
         endDate: w.end_date,
+        endTimestamp: endMidnight ? endMidnight.getTime() : null,
         daysLeft,
         daysTotal,
         daysElapsed,
         stakeIfMotivators: w.stake_if_partners_win,
         stakeIfWorkers: w.stake_if_competitors_win,
         workers,
+        motivators,
         isWorker: (w.team_player_ids || []).includes(user.id),
         isMotivator: (w.watcher_ids || []).includes(user.id),
       }
@@ -153,68 +137,22 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
       {/* Header */}
-      <div className="bg-gray-900 px-4 pt-12 pb-6 border-b border-gray-800">
-        <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-gray-400 text-sm">Hey, {profile.display_name.split(' ')[0]} 👋</p>
-              <h1 className="text-2xl font-bold text-white">This Week</h1>
-              <p className="text-gray-500 text-xs mt-0.5">{formatWeekRange(weekStart)}</p>
-            </div>
-            <Link
-              href="/log-workout"
-              className="bg-green-500 hover:bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
-            >
-              + Log Workout
-            </Link>
+      <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div>
+            <p className="text-gray-400 text-sm">Hey, {profile.display_name.split(' ')[0]} 👋</p>
+            <h1 className="text-2xl font-bold text-white">Your Competitions</h1>
           </div>
-
-          {/* Leaderboard */}
-          <div className="space-y-3">
-            {(allProfiles || [])
-              .sort((a: Profile, b: Profile) => (weekScores[b.id] || 0) - (weekScores[a.id] || 0))
-              .map((p: Profile, idx: number) => {
-                const pts = weekScores[p.id] || 0
-                const pct = Math.min(100, (pts / WEEKLY_GOAL) * 100)
-                const passed = pts >= WEEKLY_GOAL
-                const isMe = p.id === user.id
-
-                return (
-                  <div
-                    key={p.id}
-                    className={`bg-gray-800 rounded-2xl p-4 ${isMe ? 'ring-2 ring-green-500/50' : ''}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
-                        <div>
-                          <span className="font-semibold text-white">{p.display_name}</span>
-                          {isMe && <span className="text-xs text-gray-500 ml-1">(you)</span>}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`font-bold text-lg ${passed ? 'text-green-400' : 'text-white'}`}>{pts}</span>
-                        <span className="text-gray-500 text-sm"> / {WEEKLY_GOAL}</span>
-                        {passed && <span className="ml-1 text-green-400">✓</span>}
-                      </div>
-                    </div>
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-blue-500'}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {passed ? 'Goal reached!' : `${WEEKLY_GOAL - pts} pts to goal`}
-                    </p>
-                  </div>
-                )
-              })}
-          </div>
+          <Link
+            href="/log-workout"
+            className="bg-green-500 hover:bg-green-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+          >
+            + Log Workout
+          </Link>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+      <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
         {/* Pending challenge alert */}
         {myPendingWagers.length > 0 && (
           <Link href="/wagers">
@@ -232,7 +170,7 @@ export default async function DashboardPage() {
           </Link>
         )}
 
-        {/* Live challenges */}
+        {/* Live competitions — hero section */}
         <LiveChallenges challenges={challenges} currentUserId={user.id} />
 
         {/* Activity Feed */}
