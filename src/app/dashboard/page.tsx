@@ -98,7 +98,7 @@ export default async function DashboardPage() {
       const endMidnight = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : null
       const daysTotal = end ? Math.round((end.getTime() - start.getTime()) / 86400000) + 1 : 7
       const daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1)
-      const daysLeft = end ? Math.max(0, Math.round((end.getTime() - today.getTime()) / 86400000)) : 0
+      const daysLeft = endMidnight ? Math.max(0, Math.round((endMidnight.getTime() - today.getTime()) / 86400000)) : 0
 
       // Points per worker within this wager's window
       const workerPts: Record<string, number> = {}

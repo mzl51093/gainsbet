@@ -104,9 +104,11 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
             <h3 className="text-white font-bold text-sm">{challenge.title}</h3>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            {challenge.daysLeft > 0
-              ? `${challenge.daysLeft} day${challenge.daysLeft === 1 ? '' : 's'} left`
-              : 'Ended'}
+            {challenge.daysLeft > 1
+              ? `${challenge.daysLeft} days left`
+              : challenge.daysLeft === 1
+              ? 'Last day! 🔥'
+              : 'Final hours! 🔥'}
             {challenge.endDate && ` · ends ${challenge.endDate}`}
           </p>
         </div>
@@ -167,7 +169,7 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
         <div className="mb-3">
           <WorkoutPlanButton
             pointsNeeded={Math.max(1, challenge.threshold - me.points)}
-            hoursLeft={challenge.daysLeft * 24}
+            hoursLeft={Math.max(4, challenge.daysLeft * 24)}
             daysLeft={challenge.daysLeft}
           />
         </div>
@@ -208,7 +210,7 @@ function MotivatorCard({ challenge, userId }: { challenge: ChallengeData; userId
             <h3 className="text-white font-bold text-sm">{challenge.title}</h3>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            {challenge.daysLeft > 0 ? `${challenge.daysLeft} days left` : 'Ended'}
+            {challenge.daysLeft > 1 ? `${challenge.daysLeft} days left` : challenge.daysLeft === 1 ? 'Last day! 🔥' : 'Final hours! 🔥'}
             {' · '}
             <span className={allOnTrack ? 'text-gray-400' : 'text-purple-400'}>
               {allAtRisk ? 'They\'re struggling 👀' : anyAtRisk ? 'One is slipping...' : 'They\'re on track 😤'}
