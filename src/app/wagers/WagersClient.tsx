@@ -21,6 +21,23 @@ interface Props {
   weekStart: string
 }
 
+// ── Create debt record when a wager resolves ─────────────────────────────────
+async function createDebtRecord(supabase: ReturnType<typeof createClient>, wager: any, winner: 'competitors' | 'partners') {
+  const debtorIds = winner === 'competitors' ? (wager.watcher_ids || []) : (wager.team_player_ids || [])
+  const creditorIds = winner === 'competitors' ? (wager.team_player_ids || []) : (wager.watcher_ids || [])
+  const description = winner === 'competitors' ? wager.stake_if_competitors_win : wager.stake_if_partners_win
+  if (debtorIds.length === 0 || creditorIds.length === 0 || !description) return
+  // Unique constraint on wager_id — silently no-ops if already exists
+  await supabase.from('wager_debts').insert({
+    wager_id: wager.id,
+    wager_title: wager.title,
+    debtor_ids: debtorIds,
+    creditor_ids: creditorIds,
+    description,
+    status: 'outstanding',
+  }).select()
+}
+
 // ── Countdown Timer ──────────────────────────────────────────────────────────
 function CountdownTimer({ endDate }: { endDate: string }) {
   const [, setTick] = useState(0)
@@ -52,6 +69,111 @@ function CountdownTimer({ endDate }: { endDate: string }) {
   )
 }
 
+// ── Debt Tracker ─────────────────────────────────────────────────────────────
+function DebtTracker({ debts, currentUserId, allProfiles, onSettle }: {
+  debts: any[]
+  currentUserId: string
+  allProfiles: Profile[]
+  onSettle: (id: string) => void
+}) {
+  const profileMap = Object.fromEntries(allProfiles.map(p => [p.id, p]))
+  const outstanding = debts.filter(d => d.status === 'outstanding')
+  const settled = debts.filter(d => d.status === 'paid')
+
+  if (debts.length === 0) return null
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-white font-semibold flex items-center gap-2">
+          💸 Debt Ledger
+          {outstanding.length > 0 && (
+            <span className="text-xs bg-red-900/50 text-red-400 px-2 py-0.5 rounded-full font-medium">
+              {outstanding.length} outstanding
+            </span>
+          )}
+        </h2>
+      </div>
+
+      {outstanding.length > 0 && (
+        <div className="space-y-3 mb-4">
+          {outstanding.map(debt => {
+            const iAmDebtor = (debt.debtor_ids || []).includes(currentUserId)
+            const debtorNames = (debt.debtor_ids || [])
+              .map((id: string) => id === currentUserId ? 'You' : profileMap[id]?.display_name?.split(' ')[0] || '?')
+              .join(' & ')
+            const creditorNames = (debt.creditor_ids || [])
+              .map((id: string) => id === currentUserId ? 'you' : profileMap[id]?.display_name?.split(' ')[0] || '?')
+              .join(' & ')
+
+            return (
+              <div key={debt.id} className={cn(
+                'rounded-2xl border p-4',
+                iAmDebtor
+                  ? 'bg-red-900/15 border-red-700/50'
+                  : 'bg-green-900/15 border-green-700/50'
+              )}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{iAmDebtor ? '😬' : '😤'}</span>
+                      <p className={cn('text-sm font-bold', iAmDebtor ? 'text-red-300' : 'text-green-300')}>
+                        {iAmDebtor ? `You owe ${creditorNames}` : `${debtorNames} owe${debtorNames === 'You' ? '' : 's'} ${creditorNames}`}
+                      </p>
+                    </div>
+                    <p className="text-white text-sm font-medium ml-8">"{debt.description}"</p>
+                    <p className="text-gray-600 text-xs ml-8 mt-0.5">From: {debt.wager_title}</p>
+                  </div>
+                  <button
+                    onClick={() => onSettle(debt.id)}
+                    className="shrink-0 bg-gray-800 hover:bg-green-900/40 border border-gray-700 hover:border-green-700 text-gray-400 hover:text-green-400 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    ✓ Settled
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {outstanding.length === 0 && (
+        <div className="bg-green-900/15 border border-green-700/30 rounded-2xl p-4 text-center mb-4">
+          <p className="text-green-400 text-sm font-medium">✓ All debts settled — you're clean 💅</p>
+        </div>
+      )}
+
+      {settled.length > 0 && (
+        <details className="group">
+          <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 transition-colors list-none flex items-center gap-1 mb-2">
+            <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+            {settled.length} settled debt{settled.length === 1 ? '' : 's'}
+          </summary>
+          <div className="space-y-2">
+            {settled.map(debt => {
+              const iAmDebtor = (debt.debtor_ids || []).includes(currentUserId)
+              const debtorNames = (debt.debtor_ids || [])
+                .map((id: string) => id === currentUserId ? 'You' : profileMap[id]?.display_name?.split(' ')[0] || '?')
+                .join(' & ')
+              const creditorNames = (debt.creditor_ids || [])
+                .map((id: string) => id === currentUserId ? 'you' : profileMap[id]?.display_name?.split(' ')[0] || '?')
+                .join(' & ')
+              return (
+                <div key={debt.id} className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-3 opacity-60">
+                  <p className="text-xs text-gray-500 line-through">
+                    {iAmDebtor ? `You owed ${creditorNames}` : `${debtorNames} owed ${creditorNames}`}: "{debt.description}"
+                  </p>
+                  <p className="text-xs text-green-700 mt-0.5">✓ Settled · {debt.wager_title}</p>
+                </div>
+              )
+            })}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
 // ── Trophy Cabinet ───────────────────────────────────────────────────────────
 function TrophyCabinet({ wagers, currentUserId, allProfiles }: {
   wagers: any[]
@@ -77,7 +199,6 @@ function TrophyCabinet({ wagers, currentUserId, allProfiles }: {
         </span>
       </div>
 
-      {/* Win/loss scoreboard */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-green-900/20 border border-green-700/30 rounded-2xl p-4 text-center">
           <p className="text-3xl font-black text-green-400">{competitorWins}</p>
@@ -160,7 +281,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
       wager.status === 'active' ? 'border-yellow-700/50' :
       wager.status === 'pending' ? 'border-blue-700/50' : 'border-gray-700'
     )}>
-      {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -186,7 +306,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
         </span>
       </div>
 
-      {/* Countdown for active wagers */}
       {wager.status === 'active' && wager.end_date && (
         <div className="bg-gray-800/60 rounded-xl px-3 py-2 mb-3">
           <p className="text-xs text-gray-500 mb-1">Time remaining</p>
@@ -194,7 +313,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
         </div>
       )}
 
-      {/* Pending acceptance status */}
       {wager.status === 'pending' && (teamPlayers.length > 0 || watchers.length > 0) && (
         <div className="bg-blue-900/20 border border-blue-700/30 rounded-xl p-3 mb-3">
           <p className="text-xs text-blue-300 font-medium mb-2">Waiting for everyone to accept...</p>
@@ -209,7 +327,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
                   <span className={accepted ? 'text-green-400' : 'text-gray-600'}>{accepted ? '✓' : '○'}</span>
                   <span className="text-xs text-gray-500">{p.role}</span>
                   <span className={cn('text-xs', accepted ? 'text-green-300' : 'text-gray-400')}>{p.display_name}</span>
-                  {accepted && <span className="text-xs text-gray-600">in</span>}
                 </div>
               )
             })}
@@ -217,12 +334,11 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
         </div>
       )}
 
-      {/* Participants */}
       {(teamPlayers.length > 0 || watchers.length > 0) && (
         <div className="bg-gray-800/60 rounded-xl p-3 mb-3 space-y-2">
           {teamPlayers.length > 0 && (
             <div className="flex items-start gap-2">
-              <span className="text-xs text-gray-500 shrink-0 mt-0.5">🏋️ Team:</span>
+              <span className="text-xs text-gray-500 shrink-0 mt-0.5">🏋️ Workers:</span>
               <div className="flex flex-wrap gap-1">
                 {teamPlayers.map(p => (
                   <span key={p.id} className="text-xs bg-green-900/40 text-green-300 px-2 py-0.5 rounded-full">{p.display_name}</span>
@@ -232,7 +348,7 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
           )}
           {watchers.length > 0 && (
             <div className="flex items-start gap-2">
-              <span className="text-xs text-gray-500 shrink-0 mt-0.5">💅 Partners:</span>
+              <span className="text-xs text-gray-500 shrink-0 mt-0.5">💅 Motivators:</span>
               <div className="flex flex-wrap gap-1">
                 {watchers.map(p => (
                   <span key={p.id} className="text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded-full">{p.display_name}</span>
@@ -245,29 +361,25 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
 
       {wager.description && <p className="text-gray-400 text-sm mb-3">{wager.description}</p>}
 
-      {/* Condition */}
       {isTeamChallenge ? (
         <div className="bg-orange-900/20 border border-orange-700/30 rounded-xl p-3 mb-3">
           <p className="text-xs text-orange-300 font-medium mb-1">⚡ Team Challenge</p>
           <p className="text-xs text-gray-400">
-            All team members must hit <span className="text-white font-semibold">{wager.point_threshold} pts</span>.
-            If <span className="text-white font-semibold">anyone</span> falls short — partners win.
+            All workers must hit <span className="text-white font-semibold">{wager.point_threshold} pts</span>.
+            If <span className="text-white font-semibold">anyone</span> falls short — motivators win.
           </p>
         </div>
       ) : (
         <p className="text-xs text-gray-500 mb-3">{CONDITION_SHORT[wager.condition_type]} · {wager.point_threshold} pts</p>
       )}
 
-      {/* Stakes */}
       <div className="space-y-1 mb-3">
-        <p className="text-xs"><span className="text-gray-500">💅 Partners win: </span><span className="text-red-400 font-medium">{wager.stake_if_partners_win}</span></p>
-        <p className="text-xs"><span className="text-gray-500">🏆 Team wins: </span><span className="text-green-400 font-medium">{wager.stake_if_competitors_win}</span></p>
+        <p className="text-xs"><span className="text-gray-500">💅 Motivators win: </span><span className="text-red-400 font-medium">{wager.stake_if_partners_win}</span></p>
+        <p className="text-xs"><span className="text-gray-500">🏆 Workers win: </span><span className="text-green-400 font-medium">{wager.stake_if_competitors_win}</span></p>
       </div>
 
-      {/* Double Down */}
       {wager.status === 'active' && (
         <>
-          {/* Motivator can offer double down */}
           {isMotivator && !wager.double_down_status && (
             <div className="mb-3">
               {!showDDForm ? (
@@ -301,7 +413,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
             </div>
           )}
 
-          {/* Worker sees pending double down offer */}
           {isWorker && wager.double_down_status === 'offered' && (
             <div className="bg-yellow-900/20 border border-yellow-600/40 rounded-xl p-3 mb-3">
               <p className="text-yellow-300 text-xs font-bold mb-1">⚡ Double Down Offered!</p>
@@ -320,7 +431,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
             </div>
           )}
 
-          {/* Double down accepted — show extra stakes */}
           {wager.double_down_status === 'accepted' && (
             <div className="bg-orange-900/20 border border-orange-700/40 rounded-xl p-3 mb-3">
               <p className="text-orange-300 text-xs font-bold mb-1">⚡ Double Down Active!</p>
@@ -329,23 +439,20 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
             </div>
           )}
 
-          {/* Motivator waiting on response */}
           {isMotivator && wager.double_down_status === 'offered' && (
             <p className="text-xs text-gray-600 text-center mb-2">⏳ Waiting for worker to respond to double down...</p>
           )}
         </>
       )}
 
-      {/* Resolved result */}
       {wager.status === 'resolved' && wager.winner && (
         <div className={cn('text-center py-3 rounded-xl text-sm font-bold mb-3',
           wager.winner === 'competitors' ? 'bg-green-900/40 text-green-400' : 'bg-purple-900/40 text-purple-400'
         )}>
-          {wager.winner === 'competitors' ? '🏆 Team won!' : '💅 Partners won!'}
+          {wager.winner === 'competitors' ? '🏆 Workers won!' : '💅 Motivators won!'}
         </div>
       )}
 
-      {/* Trash talk */}
       <div className="mb-3">
         <CommentsSection
           targetId={wager.id}
@@ -354,7 +461,6 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
         />
       </div>
 
-      {/* Accept / Decline buttons */}
       {canRespond && (
         <div className="flex gap-2 mb-2">
           <button onClick={() => onAccept(wager.id)}
@@ -371,17 +477,16 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
         <p className="text-xs text-gray-600 text-center mb-2">Waiting for others to accept...</p>
       )}
 
-      {/* Proposer controls */}
       {isProposerSelf && (
         <div className="flex gap-2 mt-1">
           {wager.status === 'active' && (<>
             <button onClick={() => onResolve(wager.id, 'competitors')}
               className="flex-1 bg-green-900/40 hover:bg-green-800 text-green-400 border border-green-700 py-2 rounded-xl text-xs font-medium transition-colors">
-              Team won ✓
+              Workers won ✓
             </button>
             <button onClick={() => onResolve(wager.id, 'partners')}
               className="flex-1 bg-red-900/40 hover:bg-red-800 text-red-400 border border-red-700 py-2 rounded-xl text-xs font-medium transition-colors">
-              Partners won 💅
+              Motivators won 💅
             </button>
           </>)}
           <button onClick={() => onDelete(wager.id)}
@@ -397,6 +502,7 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function WagersClient({ currentUserId, allProfiles, weekStart }: Props) {
   const [wagers, setWagers] = useState<any[]>([])
+  const [debts, setDebts] = useState<any[]>([])
   const [fetching, setFetching] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -413,6 +519,18 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   const [watcherIds, setWatcherIds] = useState<string[]>([])
   const defaultEndDate = new Date(new Date(weekStart).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const [endDate, setEndDate] = useState(defaultEndDate)
+
+  const fetchDebts = useCallback(async () => {
+    const supabase = createClient()
+    const [{ data: asDebtor }, { data: asCreditor }] = await Promise.all([
+      supabase.from('wager_debts').select('*').contains('debtor_ids', [currentUserId]).order('created_at', { ascending: false }),
+      supabase.from('wager_debts').select('*').contains('creditor_ids', [currentUserId]).order('created_at', { ascending: false }),
+    ])
+    const all = [...(asDebtor || []), ...(asCreditor || [])]
+    const unique = [...new Map(all.map(d => [d.id, d])).values()]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    setDebts(unique)
+  }, [currentUserId])
 
   const fetchWagers = useCallback(async () => {
     const supabase = createClient()
@@ -436,11 +554,11 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       const pts: Record<string, number> = {}
       for (const w of (workouts || [])) pts[w.user_id] = (pts[w.user_id] || 0) + w.points
       const allWon = wager.team_player_ids.every((id: string) => (pts[id] || 0) >= wager.point_threshold)
+      const winner = allWon ? 'competitors' : 'partners'
       await supabase.from('wagers').update({
-        status: 'resolved',
-        winner: allWon ? 'competitors' : 'partners',
-        resolved_at: new Date().toISOString(),
+        status: 'resolved', winner, resolved_at: new Date().toISOString(),
       }).eq('id', wager.id)
+      await createDebtRecord(supabase, wager, winner)
     }
 
     if (expired.length > 0) {
@@ -455,7 +573,19 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     setFetching(false)
   }, [])
 
-  useEffect(() => { fetchWagers() }, [fetchWagers])
+  useEffect(() => {
+    fetchWagers()
+    fetchDebts()
+  }, [fetchWagers, fetchDebts])
+
+  async function handleSettleDebt(debtId: string) {
+    const supabase = createClient()
+    await supabase.from('wager_debts').update({
+      status: 'paid',
+      settled_at: new Date().toISOString(),
+    }).eq('id', debtId)
+    await fetchDebts()
+  }
 
   function togglePlayer(id: string, side: 'team' | 'watcher') {
     if (side === 'team') {
@@ -504,12 +634,8 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       return
     }
 
-    // Auto-accept for proposer
     if (inserted) {
-      await supabase.from('wager_acceptances').insert({
-        wager_id: inserted.id,
-        user_id: currentUserId,
-      })
+      await supabase.from('wager_acceptances').insert({ wager_id: inserted.id, user_id: currentUserId })
     }
 
     setShowForm(false)
@@ -522,10 +648,8 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   async function handleAccept(wagerId: string) {
     const supabase = createClient()
     await supabase.from('wager_acceptances').insert({ wager_id: wagerId, user_id: currentUserId })
-
     const wager = wagers.find(w => w.id === wagerId)
-    const { data: acceptances } = await supabase
-      .from('wager_acceptances').select('user_id').eq('wager_id', wagerId)
+    const { data: acceptances } = await supabase.from('wager_acceptances').select('user_id').eq('wager_id', wagerId)
     const acceptedIds = (acceptances || []).map((a: any) => a.user_id)
     const everyone = [...(wager?.team_player_ids || []), ...(wager?.watcher_ids || [])]
     const allAccepted = everyone.every((id: string) => acceptedIds.includes(id))
@@ -540,7 +664,10 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     await supabase.from('wagers').update({
       status: 'resolved', winner, resolved_at: new Date().toISOString(),
     }).eq('id', wagerId)
+    const wager = wagers.find(w => w.id === wagerId)
+    if (wager) await createDebtRecord(supabase, wager, winner)
     await fetchWagers()
+    await fetchDebts()
   }
 
   async function handleDoubleDownOffer(wagerId: string, extraMotivator: string, extraWorker: string) {
@@ -555,9 +682,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
 
   async function handleDoubleDownRespond(wagerId: string, accept: boolean) {
     const supabase = createClient()
-    await supabase.from('wagers').update({
-      double_down_status: accept ? 'accepted' : 'declined',
-    }).eq('id', wagerId)
+    await supabase.from('wagers').update({ double_down_status: accept ? 'accepted' : 'declined' }).eq('id', wagerId)
     await fetchWagers()
   }
 
@@ -571,9 +696,23 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   const pendingWagers = wagers.filter(w => w.status === 'pending')
   const activeWagers = wagers.filter(w => w.status === 'active')
   const resolvedWagers = wagers.filter(w => w.status === 'resolved' || w.status === 'expired')
+  const outstandingDebts = debts.filter(d => d.status === 'outstanding')
+  const profileMap = Object.fromEntries(allProfiles.map(p => [p.id, p]))
 
   return (
     <div className="space-y-6">
+
+      {/* ── Debt Tracker ─────────────────────────────────────────────── */}
+      {debts.length > 0 && (
+        <DebtTracker
+          debts={debts}
+          currentUserId={currentUserId}
+          allProfiles={allProfiles}
+          onSettle={handleSettleDebt}
+        />
+      )}
+
+      {/* ── Propose Button ────────────────────────────────────────────── */}
       <button
         onClick={() => setShowForm(!showForm)}
         className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl transition-colors"
@@ -584,6 +723,30 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       {showForm && (
         <form onSubmit={handleCreateWager} className="bg-gray-900 rounded-2xl p-5 space-y-5">
           <h2 className="text-white font-bold text-lg">New Wager</h2>
+
+          {/* ── Debt Warning ──────────────────────────────────────────── */}
+          {outstandingDebts.length > 0 && (
+            <div className="bg-red-900/25 border border-red-700/60 rounded-xl p-4">
+              <p className="text-red-400 font-bold text-sm mb-2">⚠️ You have unsettled debts</p>
+              <div className="space-y-1.5 mb-2">
+                {outstandingDebts.map(debt => {
+                  const iAmDebtor = (debt.debtor_ids || []).includes(currentUserId)
+                  const otherIds = iAmDebtor ? debt.creditor_ids : debt.debtor_ids
+                  const otherName = otherIds.map((id: string) => profileMap[id]?.display_name?.split(' ')[0] || '?').join(' & ')
+                  return (
+                    <p key={debt.id} className="text-xs text-gray-300">
+                      {iAmDebtor
+                        ? <><span className="text-red-400">You owe {otherName}:</span> "{debt.description}"</>
+                        : <><span className="text-yellow-400">{otherName} owes you:</span> "{debt.description}"</>
+                      }
+                      <span className="text-gray-600"> · {debt.wager_title}</span>
+                    </p>
+                  )
+                })}
+              </div>
+              <p className="text-red-600 text-xs">Starting new bets before settling up... bold move. 👀 Are you sure?</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-400 mb-2">Title</label>
@@ -606,7 +769,6 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             </div>
           </div>
 
-          {/* Participant assignment */}
           <div>
             <label className="block text-sm text-gray-400 mb-3">Assign Participants</label>
             <div className="space-y-2">
@@ -622,12 +784,12 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
                       <button type="button" onClick={() => togglePlayer(p.id, 'team')}
                         className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                           side === 'team' ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-400 hover:bg-gray-600')}>
-                        🏋️ Competing
+                        🏋️ Worker
                       </button>
                       <button type="button" onClick={() => togglePlayer(p.id, 'watcher')}
                         className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                           side === 'watcher' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600')}>
-                        💅 Partner
+                        💅 Motivator
                       </button>
                     </div>
                   </div>
@@ -636,7 +798,6 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             </div>
           </div>
 
-          {/* Win condition */}
           <div>
             <label className="block text-sm text-gray-400 mb-3">Win Condition</label>
             <div className="space-y-2">
@@ -647,7 +808,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
                   <span className="text-white text-sm font-medium">Team Challenge</span>
                   <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full ml-auto">Popular</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1 ml-6">Partners win if <strong className="text-white">either</strong> player misses the goal</p>
+                <p className="text-xs text-gray-400 mt-1 ml-6">Motivators win if <strong className="text-white">either</strong> worker misses the goal</p>
               </button>
               <div className="grid grid-cols-2 gap-2">
                 {(['both_fail', 'either_fails', 'one_fails', 'custom'] as const).map(type => (
@@ -660,7 +821,6 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
             </div>
           </div>
 
-          {/* Point threshold */}
           <div>
             <label className="block text-sm text-gray-400 mb-2">
               Goal: <span className="text-white font-semibold">{pointThreshold} pts each</span>
@@ -674,13 +834,13 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">💅 If the partners win...</label>
+            <label className="block text-sm text-gray-400 mb-2">💅 If the motivators win...</label>
             <input type="text" value={stakeIfPartnersWin} onChange={e => setStakeIfPartnersWin(e.target.value)}
               placeholder="e.g. Buy her a bouquet of flowers" required
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors" />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">🏆 If the team wins...</label>
+            <label className="block text-sm text-gray-400 mb-2">🏆 If the workers win...</label>
             <input type="text" value={stakeIfCompetitorsWin} onChange={e => setStakeIfCompetitorsWin(e.target.value)}
               placeholder="e.g. Wives cook dinner all week" required
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition-colors" />
@@ -702,11 +862,8 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
         </form>
       )}
 
-      {fetching && (
-        <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
-      )}
+      {fetching && <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>}
 
-      {/* Pending challenges */}
       {!fetching && pendingWagers.length > 0 && (
         <div>
           <h2 className="text-white font-semibold mb-3">Pending Challenges ⏳</h2>
@@ -721,7 +878,6 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
         </div>
       )}
 
-      {/* Active wagers */}
       {!fetching && activeWagers.length > 0 && (
         <div>
           <h2 className="text-white font-semibold mb-3">Active Challenges 🔥</h2>
@@ -736,7 +892,6 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
         </div>
       )}
 
-      {/* Trophy cabinet */}
       {!fetching && resolvedWagers.length > 0 && (
         <TrophyCabinet wagers={resolvedWagers} currentUserId={currentUserId} allProfiles={allProfiles} />
       )}

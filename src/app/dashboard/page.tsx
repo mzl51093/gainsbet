@@ -127,6 +127,16 @@ export default async function DashboardPage() {
       }
     })
 
+  // Outstanding debts for current user
+  const [{ data: asDebtor }, { data: asCreditor }] = await Promise.all([
+    supabase.from('wager_debts').select('*').contains('debtor_ids', [user.id]).eq('status', 'outstanding'),
+    supabase.from('wager_debts').select('*').contains('creditor_ids', [user.id]).eq('status', 'outstanding'),
+  ])
+  const outstandingDebts = [
+    ...(asDebtor || []).map((d: any) => ({ ...d, iAmDebtor: true })),
+    ...(asCreditor || []).map((d: any) => ({ ...d, iAmDebtor: false })),
+  ]
+
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
     .from('workouts')
@@ -153,6 +163,27 @@ export default async function DashboardPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
+        {/* Debt alert */}
+        {outstandingDebts.length > 0 && (
+          <Link href="/wagers">
+            <div className="bg-red-900/25 border border-red-700/50 rounded-2xl p-4 flex items-center gap-3">
+              <span className="text-2xl">💸</span>
+              <div className="flex-1">
+                <p className="text-red-300 font-semibold text-sm">
+                  {outstandingDebts.length === 1 ? '1 unsettled debt' : `${outstandingDebts.length} unsettled debts`}
+                </p>
+                <p className="text-red-700 text-xs mt-0.5">
+                  {outstandingDebts.slice(0, 2).map((d: any) => {
+                    const otherIds = d.iAmDebtor ? d.creditor_ids : d.debtor_ids
+                    const otherName = otherIds.map((id: string) => profileMap[id]?.display_name?.split(' ')[0] || '?').join(' & ')
+                    return d.iAmDebtor ? `You owe ${otherName} · ` : `${otherName} owes you · `
+                  }).join('')}Tap to settle →
+                </p>
+              </div>
+            </div>
+          </Link>
+        )}
+
         {/* Pending challenge alert */}
         {myPendingWagers.length > 0 && (
           <Link href="/wagers">
