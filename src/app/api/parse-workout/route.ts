@@ -5,7 +5,7 @@ import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const VALID_TYPES = ['strength', 'cardio', 'hiit', 'flexibility', 'sports', 'other'] as const
+const VALID_TYPES = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
 
 export async function POST(request: Request) {
   try {
@@ -19,18 +19,13 @@ export async function POST(request: Request) {
       max_tokens: 150,
       system: `You are a fitness tracking assistant. Parse workout descriptions and return structured JSON.
 
-Workout types and their base points:
-- strength: weight training, lifting, resistance (10 pts)
-- cardio: running, cycling, swimming, walking (8 pts)
-- hiit: high intensity interval training, circuit training (12 pts)
-- flexibility: yoga, stretching, pilates, recovery (5 pts)
-- sports: basketball, tennis, golf, soccer, etc (7 pts)
-- other: anything else (6 pts)
-
-Duration multipliers: <30min=0.75x, 30-60min=1x, 60-90min=1.25x, 90+min=1.5x
+Workout types (pick the most specific match):
+HIGH intensity: hiit (circuit/intervals), running (jogging/sprints), strength (lifting/weights), swimming
+MEDIUM intensity: cycling (spin/peloton/bike), sports (basketball/tennis/soccer), cardio (elliptical/rowing/general)
+LOW intensity: walking (walks/hikes/strolls), flexibility (yoga/pilates/stretching), other
 
 Always respond with ONLY valid JSON, no explanation. Example:
-{"workout_type":"strength","duration_minutes":45,"summary":"45-min strength training session with cardio intervals"}`,
+{"workout_type":"running","duration_minutes":45,"summary":"45-min outdoor run"}`,
       messages: [{
         role: 'user',
         content: `Parse this workout: "${description}"`

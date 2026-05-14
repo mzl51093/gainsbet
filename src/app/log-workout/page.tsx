@@ -14,6 +14,12 @@ const PROOF_TYPES = [
   { value: 'other', label: 'Other', emoji: '📎' },
 ]
 
+const INTENSITY_GROUPS = [
+  { label: '🔴 High Intensity', key: 'high', sublabel: '11–16 pts/hr' },
+  { label: '🟡 Medium Intensity', key: 'medium', sublabel: '9–10 pts/hr' },
+  { label: '🟢 Light Activity', key: 'low', sublabel: '5–7 pts/hr' },
+]
+
 interface ParsedWorkout {
   workout_type: WorkoutType
   duration_minutes: number
@@ -25,6 +31,7 @@ function LogWorkoutInner() {
   const router = useRouter()
   const params = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
+  const scanRef = useRef<HTMLInputElement>(null)
 
   // Pre-fill from URL params (e.g. from workout plan recommendations)
   const paramType = (params.get('type') || 'strength') as WorkoutType
@@ -33,12 +40,18 @@ function LogWorkoutInner() {
   const hasParams = params.has('type')
 
   const [tab, setTab] = useState<'quick' | 'detailed'>(hasParams ? 'detailed' : 'quick')
+  const [quickMode, setQuickMode] = useState<'text' | 'scan'>('text')
 
   // Quick log state
   const [quickText, setQuickText] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState<ParsedWorkout | null>(null)
   const [parseError, setParseError] = useState('')
+
+  // Scan state
+  const [scanFile, setScanFile] = useState<File | null>(null)
+  const [scanPreview, setScanPreview] = useState<string | null>(null)
+  const [scanning, setScanning] = useState(false)
 
   // Detailed log state
   const [workoutType, setWorkoutType] = useState<WorkoutType>(paramType)
@@ -57,13 +70,58 @@ function LogWorkoutInner() {
   const detailedPoints = calculatePoints(workoutType, duration, earlyBird)
   const ptsPerHour = getPtsPerHour(workoutType)
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setProofFile(file)
     const reader = new FileReader()
     reader.onloadend = () => setProofPreview(reader.result as string)
     reader.readAsDataURL(file)
+  }
+
+  function handleScanFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setScanFile(file)
+    setParsed(null)
+    setParseError('')
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      setScanPreview(result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function handleScan() {
+    if (!scanFile || !scanPreview) return
+    setScanning(true)
+    setParseError('')
+    setParsed(null)
+
+    try {
+      // Extract base64 data (strip the data:image/...;base64, prefix)
+      const [header, base64Data] = scanPreview.split(',')
+      const mediaType = header.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+
+      const res = await fetch('/api/scan-workout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64Data, mediaType }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to analyze')
+      setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
+
+      // Auto-set proof to the scanned image
+      setProofFile(scanFile)
+      setProofPreview(scanPreview)
+      setProofType('screenshot')
+    } catch (err: any) {
+      setParseError(err.message || 'Could not read screenshot. Try again or use text description.')
+    } finally {
+      setScanning(false)
+    }
   }
 
   async function handleParse() {
@@ -80,7 +138,6 @@ function LogWorkoutInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to parse')
-      // Apply early bird multiplier to AI-parsed points
       setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
     } catch (err: any) {
       setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
@@ -98,12 +155,13 @@ function LogWorkoutInner() {
     if (!user) { router.push('/auth'); return }
 
     let proofUrl: string | null = null
-    if (proofFile) {
-      const ext = proofFile.name.split('.').pop()
+    const fileToUpload = proofFile
+    if (fileToUpload) {
+      const ext = fileToUpload.name.split('.').pop()
       const filePath = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadError, data } = await supabase.storage
         .from('workout-proofs')
-        .upload(filePath, proofFile, { cacheControl: '3600', upsert: false })
+        .upload(filePath, fileToUpload, { cacheControl: '3600', upsert: false })
       if (uploadError) {
         setError('Failed to upload proof: ' + uploadError.message)
         setLoading(false)
@@ -124,7 +182,7 @@ function LogWorkoutInner() {
       points: finalPoints,
       notes: finalNotes,
       proof_url: proofUrl,
-      proof_type: proofFile ? proofType : null,
+      proof_type: fileToUpload ? proofType : null,
       logged_at: new Date().toISOString(),
     })
 
@@ -180,36 +238,114 @@ function LogWorkoutInner() {
         {/* QUICK LOG TAB */}
         {tab === 'quick' && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">
-                Describe your workout in plain English
-              </label>
-              <textarea
-                value={quickText}
-                onChange={e => { setQuickText(e.target.value); setParsed(null) }}
-                placeholder={`e.g. "Just did a 45 min session rotating between treadmill hikes and lifting"`}
-                rows={4}
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
-              />
+            {/* Mode toggle */}
+            <div className="flex bg-gray-900 rounded-xl p-1">
+              <button
+                onClick={() => { setQuickMode('text'); setParsed(null); setParseError('') }}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  quickMode === 'text' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                ✍️ Describe it
+              </button>
+              <button
+                onClick={() => { setQuickMode('scan'); setParsed(null); setParseError('') }}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  quickMode === 'scan' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                📸 Scan Tracker
+              </button>
             </div>
 
-            {parseError && <p className="text-red-400 text-sm">{parseError}</p>}
-
-            {!parsed ? (
-              <button
-                onClick={handleParse}
-                disabled={parsing || !quickText.trim()}
-                className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
-              >
-                {parsing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⚙️</span> Analyzing...
-                  </span>
-                ) : 'Analyze Workout with AI'}
-              </button>
-            ) : (
+            {/* TEXT MODE */}
+            {quickMode === 'text' && !parsed && (
               <div className="space-y-4">
-                {/* Parsed result card */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    Describe your workout in plain English
+                  </label>
+                  <textarea
+                    value={quickText}
+                    onChange={e => { setQuickText(e.target.value); setParsed(null) }}
+                    placeholder={`e.g. "45 min run outside, maybe 4 miles" or "leg day at the gym, squats and deadlifts"`}
+                    rows={4}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
+                  />
+                </div>
+                {parseError && <p className="text-red-400 text-sm">{parseError}</p>}
+                <button
+                  onClick={handleParse}
+                  disabled={parsing || !quickText.trim()}
+                  className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
+                >
+                  {parsing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin">⚙️</span> Analyzing...
+                    </span>
+                  ) : 'Analyze with AI'}
+                </button>
+              </div>
+            )}
+
+            {/* SCAN MODE */}
+            {quickMode === 'scan' && !parsed && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-400">
+                  Upload a screenshot from Whoop, Apple Watch, Peloton, Strava, Garmin — AI will read your stats automatically.
+                </p>
+                <input
+                  ref={scanRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleScanFileChange}
+                  className="hidden"
+                />
+                {scanPreview ? (
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={scanPreview} alt="Tracker screenshot" className="w-full rounded-xl object-cover max-h-64" />
+                    <button
+                      type="button"
+                      onClick={() => { setScanFile(null); setScanPreview(null); setParsed(null) }}
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => scanRef.current?.click()}
+                    className="w-full bg-gray-900 border-2 border-dashed border-gray-600 hover:border-green-500 rounded-xl py-10 text-center transition-colors"
+                  >
+                    <p className="text-3xl mb-2">📱</p>
+                    <p className="text-white text-sm font-medium">Tap to upload screenshot</p>
+                    <p className="text-gray-600 text-xs mt-1">Whoop · Apple Watch · Peloton · Strava · Garmin</p>
+                  </button>
+                )}
+
+                {parseError && <p className="text-red-400 text-sm">{parseError}</p>}
+
+                {scanFile && (
+                  <button
+                    onClick={handleScan}
+                    disabled={scanning}
+                    className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
+                  >
+                    {scanning ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin">⚙️</span> Reading your stats...
+                      </span>
+                    ) : 'Analyze Screenshot with AI'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* PARSED RESULT (shared for both modes) */}
+            {parsed && (
+              <div className="space-y-4">
                 <div className="bg-gray-900 border border-green-700/50 rounded-2xl p-5">
                   <p className="text-xs text-green-400 font-medium mb-3 uppercase tracking-wide">AI Analysis</p>
                   <p className="text-white text-sm mb-4">{parsed.summary}</p>
@@ -229,11 +365,10 @@ function LogWorkoutInner() {
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold text-green-400">{parsed.points}</p>
-                      <p className="text-xs text-gray-400 mt-1">Points</p>
+                      <p className="text-xs text-gray-400 mt-1">Points{isEarlyBird ? ' 🌅' : ''}</p>
                     </div>
                   </div>
 
-                  {/* Allow tweaking */}
                   <p className="text-xs text-gray-600 mb-2">Adjust if needed:</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -244,7 +379,7 @@ function LogWorkoutInner() {
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       >
                         {WORKOUT_TYPES.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
+                          <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
                         ))}
                       </select>
                     </div>
@@ -277,7 +412,7 @@ function LogWorkoutInner() {
                 </button>
 
                 <button
-                  onClick={() => setParsed(null)}
+                  onClick={() => { setParsed(null); setScanFile(null); setScanPreview(null) }}
                   className="w-full text-gray-500 text-sm py-2"
                 >
                   Re-analyze
@@ -297,26 +432,40 @@ function LogWorkoutInner() {
               <p className="text-gray-500 text-xs mt-1">{ptsPerHour} pts/hour · scales with duration</p>
             </div>
 
-            {/* Workout Type */}
+            {/* Workout Type by intensity group */}
             <div>
               <label className="block text-sm text-gray-400 mb-3">Workout Type</label>
-              <div className="grid grid-cols-3 gap-2">
-                {WORKOUT_TYPES.map(type => (
-                  <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => setWorkoutType(type.value as WorkoutType)}
-                    className={`p-3 rounded-xl border-2 transition-colors text-center ${
-                      workoutType === type.value
-                        ? 'border-green-500 bg-green-500/10'
-                        : 'border-gray-700 bg-gray-900'
-                    }`}
-                  >
-                    <div className="text-xl mb-1">{type.emoji}</div>
-                    <div className="text-xs text-white leading-tight">{type.label}</div>
-                    <div className="text-xs text-gray-500">{type.ptsPerHour} pts/hr</div>
-                  </button>
-                ))}
+              <div className="space-y-3">
+                {INTENSITY_GROUPS.map(group => {
+                  const groupTypes = WORKOUT_TYPES.filter(t => t.intensity === group.key)
+                  return (
+                    <div key={group.key}>
+                      <p className="text-xs text-gray-600 mb-1.5">
+                        {group.label} <span className="text-gray-700">· {group.sublabel}</span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {groupTypes.map(type => (
+                          <button
+                            key={type.value}
+                            type="button"
+                            onClick={() => setWorkoutType(type.value as WorkoutType)}
+                            className={`p-3 rounded-xl border-2 transition-colors text-left flex items-center gap-2 ${
+                              workoutType === type.value
+                                ? 'border-green-500 bg-green-500/10'
+                                : 'border-gray-700 bg-gray-900'
+                            }`}
+                          >
+                            <span className="text-xl">{type.emoji}</span>
+                            <div>
+                              <div className="text-xs text-white leading-tight">{type.label}</div>
+                              <div className="text-xs text-gray-600">{type.ptsPerHour} pts/hr</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -416,7 +565,7 @@ function LogWorkoutInner() {
           ref={fileRef}
           type="file"
           accept="image/*"
-          onChange={handleFileChange}
+          onChange={handleProofFileChange}
           className="hidden"
         />
 

@@ -1,11 +1,18 @@
-// Points are earned per hour of effort — longer and harder workouts scale linearly
+// Points are earned per hour of effort — intensity tiers reflect actual caloric/cardiovascular load
 export const WORKOUT_TYPES = [
-  { value: 'strength', label: 'Strength / Lifting', ptsPerHour: 12, emoji: '🏋️' },
-  { value: 'cardio', label: 'Cardio / Running', ptsPerHour: 10, emoji: '🏃' },
-  { value: 'hiit', label: 'HIIT', ptsPerHour: 15, emoji: '⚡' },
-  { value: 'flexibility', label: 'Flexibility / Recovery', ptsPerHour: 6, emoji: '🧘' },
-  { value: 'sports', label: 'Sports / Active', ptsPerHour: 10, emoji: '⚽' },
-  { value: 'other', label: 'Other', ptsPerHour: 8, emoji: '💪' },
+  // High intensity (12–16 pts/hr)
+  { value: 'hiit', label: 'HIIT / Circuit', ptsPerHour: 16, emoji: '⚡', intensity: 'high' },
+  { value: 'running', label: 'Running', ptsPerHour: 12, emoji: '🏃', intensity: 'high' },
+  { value: 'strength', label: 'Lifting / Weights', ptsPerHour: 12, emoji: '🏋️', intensity: 'high' },
+  { value: 'swimming', label: 'Swimming', ptsPerHour: 11, emoji: '🏊', intensity: 'high' },
+  // Medium intensity (9–10 pts/hr)
+  { value: 'cycling', label: 'Cycling / Spin', ptsPerHour: 10, emoji: '🚴', intensity: 'medium' },
+  { value: 'sports', label: 'Sports / Active', ptsPerHour: 10, emoji: '⚽', intensity: 'medium' },
+  { value: 'cardio', label: 'Cardio (other)', ptsPerHour: 9, emoji: '💓', intensity: 'medium' },
+  // Low intensity (5–7 pts/hr)
+  { value: 'walking', label: 'Walking / Hike', ptsPerHour: 5, emoji: '🚶', intensity: 'low' },
+  { value: 'flexibility', label: 'Yoga / Stretch', ptsPerHour: 5, emoji: '🧘', intensity: 'low' },
+  { value: 'other', label: 'Other', ptsPerHour: 7, emoji: '💪', intensity: 'low' },
 ] as const
 
 export type WorkoutType = typeof WORKOUT_TYPES[number]['value']
