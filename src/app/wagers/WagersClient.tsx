@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, cn } from '@/lib/utils'
 import { WEEKLY_GOAL } from '@/lib/points'
-import { getTodayEastern, getEndOfDayEasternISO } from '@/lib/timezone'
+import { getTodayEastern, getEndOfDayEasternISO, getEasternOffsetHours } from '@/lib/timezone'
 import type { Profile } from '@/lib/types'
 import CommentsSection from '@/components/CommentsSection'
 
@@ -227,7 +227,7 @@ function TrophyCabinet({ wagers, currentUserId, allProfiles }: {
                     <p className="text-white font-semibold text-sm">{wager.title}</p>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {wager.week_start}{wager.end_date ? ` → ${wager.end_date}` : ''} · {formatDate(wager.resolved_at || wager.created_at)}
+                    {new Date(wager.week_start).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })}{wager.end_date ? ` → ${new Date(wager.end_date).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })}` : ''} · {formatDate(wager.resolved_at || wager.created_at)}
                   </p>
                   {teamPlayers.length > 0 && (
                     <p className="text-xs text-gray-600 mt-0.5">
@@ -295,7 +295,9 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
             Proposed by {wager.profiles?.display_name} · {formatDate(wager.created_at)}
           </p>
           {wager.end_date && (
-            <p className="text-xs text-gray-600 mt-0.5">📅 {wager.week_start} → {wager.end_date}</p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              📅 {new Date(wager.week_start).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })} → {new Date(wager.end_date).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })}
+            </p>
           )}
         </div>
         <span className={cn('text-xs px-2 py-1 rounded-full font-medium shrink-0',
@@ -518,8 +520,12 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
   const [stakeIfCompetitorsWin, setStakeIfCompetitorsWin] = useState('')
   const [teamPlayerIds, setTeamPlayerIds] = useState<string[]>([currentUserId])
   const [watcherIds, setWatcherIds] = useState<string[]>([])
-  const defaultEndDate = new Date(new Date(weekStart).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const [endDate, setEndDate] = useState(defaultEndDate)
+  const todayEastern = getTodayEastern()
+  const [startDate, setStartDate] = useState(todayEastern)
+  const [endDate, setEndDate] = useState(() => {
+    const [y, m, d] = todayEastern.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d + 6)).toISOString().split('T')[0]
+  })
 
   const fetchDebts = useCallback(async () => {
     const supabase = createClient()
@@ -622,7 +628,12 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       proposed_by: currentUserId,
       condition_type: conditionType,
       point_threshold: pointThreshold,
-      week_start: weekStart.split('T')[0],
+      week_start: (() => {
+        // Store as Eastern midnight ISO so workouts before today aren't counted
+        const [y, m, d] = startDate.split('-').map(Number)
+        const absOffset = -getEasternOffsetHours() // 4 for EDT, 5 for EST
+        return new Date(Date.UTC(y, m - 1, d, absOffset, 0, 0)).toISOString()
+      })(),
       end_date: endDate,
       stake_if_partners_win: stakeIfPartnersWin,
       stake_if_competitors_win: stakeIfCompetitorsWin,
@@ -643,7 +654,10 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
 
     setShowForm(false)
     setTitle(''); setDescription(''); setStakeIfPartnersWin(''); setStakeIfCompetitorsWin('')
-    setTeamPlayerIds([currentUserId]); setWatcherIds([]); setEndDate(defaultEndDate)
+    setTeamPlayerIds([currentUserId]); setWatcherIds([])
+    const t = getTodayEastern(); setStartDate(t)
+    const [y, m, d] = t.split('-').map(Number)
+    setEndDate(new Date(Date.UTC(y, m - 1, d + 6)).toISOString().split('T')[0])
     setLoading(false)
     await fetchWagers()
   }
@@ -761,13 +775,20 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-gray-400 mb-2">Start Date</label>
-              <input type="date" value={weekStart.split('T')[0]} readOnly
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-gray-400 focus:outline-none cursor-not-allowed" />
+              <input type="date" value={startDate}
+                onChange={e => {
+                  setStartDate(e.target.value)
+                  // Push end date forward if it's now before start
+                  if (endDate < e.target.value) setEndDate(e.target.value)
+                }}
+                min={todayEastern} required
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-500 transition-colors" />
+              <p className="text-xs text-gray-700 mt-1">Cannot be before today</p>
             </div>
             <div>
               <label className="block text-sm text-gray-400 mb-2">End Date</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                min={weekStart.split('T')[0]} required
+                min={startDate} required
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-500 transition-colors" />
             </div>
           </div>
