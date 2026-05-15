@@ -13,9 +13,11 @@ type WorkoutWithRelations = Workout & { profiles: Profile; workout_reactions: an
 interface Props {
   initialWorkouts: WorkoutWithRelations[]
   currentUserId: string
+  activeCompetitorIds?: string[]
 }
 
-export default function ActivityFeedClient({ initialWorkouts, currentUserId }: Props) {
+export default function ActivityFeedClient({ initialWorkouts, currentUserId, activeCompetitorIds = [] }: Props) {
+  const competitorSet = new Set(activeCompetitorIds)
   const [workouts, setWorkouts] = useState(initialWorkouts)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editType, setEditType] = useState('')
@@ -72,6 +74,7 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId }: P
         const isEditing = editingId === workout.id
         const loggedHour = new Date(workout.logged_at).getHours()
         const wasEarlyBird = loggedHour >= 6 && loggedHour < 9
+        const isCompetitor = !isOwn && competitorSet.has(workout.user_id)
 
         return (
           <div key={workout.id} className="bg-gray-900 rounded-2xl p-4">
@@ -112,9 +115,16 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId }: P
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{wType?.emoji || '💪'}</span>
                     <div>
-                      <p className="text-white font-medium text-sm">
-                        {workout.profiles?.display_name || 'Unknown'}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-white font-medium text-sm">
+                          {workout.profiles?.display_name || 'Unknown'}
+                        </p>
+                        {isCompetitor && (
+                          <span className="text-xs bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded-md font-medium">
+                            ⚔️ vs you
+                          </span>
+                        )}
+                      </div>
                       <p className="text-gray-500 text-xs">
                         {wType?.label} · {workout.duration_minutes}min
                       </p>

@@ -141,6 +141,17 @@ export default async function DashboardPage() {
     ...(asCreditor || []).map((d: any) => ({ ...d, iAmDebtor: false })),
   ]
 
+  // IDs of people in active challenges WITH current user (for activity feed badge)
+  const activeCompetitorIds = new Set<string>()
+  for (const w of (activeWagers || [])) {
+    const involved = (w.team_player_ids || []).includes(user.id) || (w.watcher_ids || []).includes(user.id)
+    if (involved) {
+      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+        if (id !== user.id) activeCompetitorIds.add(id)
+      }
+    }
+  }
+
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
     .from('workouts')
@@ -218,6 +229,7 @@ export default async function DashboardPage() {
             <ActivityFeedClient
               initialWorkouts={recentWorkouts as any}
               currentUserId={user.id}
+              activeCompetitorIds={[...activeCompetitorIds]}
             />
           ) : (
             <div className="bg-gray-900 rounded-2xl p-8 text-center">

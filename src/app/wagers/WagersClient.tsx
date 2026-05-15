@@ -538,6 +538,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     const { data, error } = await supabase
       .from('wagers')
       .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
+      .or(`proposed_by.eq.${currentUserId},team_player_ids.cs.{${currentUserId}},watcher_ids.cs.{${currentUserId}}`)
       .order('created_at', { ascending: false })
     if (error) { setError('Fetch error: ' + error.message); setFetching(false); return }
 
@@ -566,6 +567,7 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       const { data: refreshed } = await supabase
         .from('wagers')
         .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
+        .or(`proposed_by.eq.${currentUserId},team_player_ids.cs.{${currentUserId}},watcher_ids.cs.{${currentUserId}}`)
         .order('created_at', { ascending: false })
       setWagers(refreshed || [])
     } else {
