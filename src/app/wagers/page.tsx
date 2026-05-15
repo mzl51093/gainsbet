@@ -4,6 +4,7 @@ import BottomNav from '@/components/BottomNav'
 import WagersClient from './WagersClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
 import { getWeekStart } from '@/lib/points'
+import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
 import type { Profile } from '@/lib/types'
 
 export const revalidate = 0
@@ -43,8 +44,9 @@ export default async function WagersPage() {
         .gte('logged_at', earliestStart)
     : { data: [] }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const todayEasternStr = getTodayEastern()
+  const [ty, tm, td] = todayEasternStr.split('-').map(Number)
+  const today = new Date(Date.UTC(ty, tm - 1, td))
 
   const challenges: ChallengeData[] = (activeWagers || [])
     .filter((w: any) =>
@@ -53,11 +55,12 @@ export default async function WagersPage() {
     )
     .map((w: any) => {
       const start = new Date(w.week_start)
-      const end = w.end_date ? new Date(w.end_date) : null
-      const endMidnight = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : null
-      const daysTotal = end ? Math.round((end.getTime() - start.getTime()) / 86400000) + 1 : 7
+      const endEasternISO = w.end_date ? getEndOfDayEasternISO(w.end_date) : null
+      const endMidnight = endEasternISO ? new Date(endEasternISO) : null
+      const daysTotal = w.end_date
+        ? Math.round((new Date(w.end_date).getTime() - start.getTime()) / 86400000) + 1 : 7
       const daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1)
-      const daysLeft = endMidnight ? Math.max(0, Math.round((endMidnight.getTime() - today.getTime()) / 86400000)) : 0
+      const daysLeft = w.end_date ? daysLeftEastern(w.end_date) : 0
 
       const workerPts: Record<string, number> = {}
       for (const workout of (challengeWorkouts || [])) {
@@ -93,7 +96,7 @@ export default async function WagersPage() {
         threshold: w.point_threshold,
         weekStart: w.week_start,
         endDate: w.end_date,
-        endTimestamp: endMidnight ? endMidnight.getTime() : null,
+        endTimestamp: endEasternISO ? new Date(endEasternISO).getTime() : null,
         daysLeft,
         daysTotal,
         daysElapsed,

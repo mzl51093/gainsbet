@@ -5,6 +5,8 @@ import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
+import ResolutionAlert from '@/components/ResolutionAlert'
+import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
 
 export const revalidate = 0
 
@@ -48,9 +50,10 @@ export default async function DashboardPage() {
     !w.wager_acceptances?.some((a: any) => a.user_id === user.id)
   )
 
-  // Build challenge data
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Build challenge data — use Eastern date to avoid UTC-day mismatch
+  const todayEasternStr = getTodayEastern()
+  const [ty, tm, td] = todayEasternStr.split('-').map(Number)
+  const today = new Date(Date.UTC(ty, tm - 1, td)) // midnight UTC of Eastern today (for elapsed calc)
 
   const allWorkerIds = [...new Set((activeWagers || []).flatMap((w: any) => w.team_player_ids || []))] as string[]
 
@@ -74,11 +77,12 @@ export default async function DashboardPage() {
     )
     .map((w: any) => {
       const start = new Date(w.week_start)
-      const end = w.end_date ? new Date(w.end_date) : null
-      const endMidnight = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : null
-      const daysTotal = end ? Math.round((end.getTime() - start.getTime()) / 86400000) + 1 : 7
+      const endEasternISO = w.end_date ? getEndOfDayEasternISO(w.end_date) : null
+      const endMidnight = endEasternISO ? new Date(endEasternISO) : null
+      const daysTotal = w.end_date
+        ? Math.round((new Date(w.end_date).getTime() - start.getTime()) / 86400000) + 1 : 7
       const daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1)
-      const daysLeft = endMidnight ? Math.max(0, Math.round((endMidnight.getTime() - today.getTime()) / 86400000)) : 0
+      const daysLeft = w.end_date ? daysLeftEastern(w.end_date) : 0
 
       const workerPts: Record<string, number> = {}
       for (const workout of (challengeWorkouts || [])) {
@@ -114,7 +118,7 @@ export default async function DashboardPage() {
         threshold: w.point_threshold,
         weekStart: w.week_start,
         endDate: w.end_date,
-        endTimestamp: endMidnight ? endMidnight.getTime() : null,
+        endTimestamp: endEasternISO ? new Date(endEasternISO).getTime() : null,
         daysLeft,
         daysTotal,
         daysElapsed,
@@ -146,6 +150,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
+      {/* Resolution celebration/loss alert — checks localStorage, shows once */}
+      <ResolutionAlert currentUserId={user.id} />
+
       {/* Header */}
       <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">
         <div className="max-w-lg mx-auto flex items-center justify-between">
