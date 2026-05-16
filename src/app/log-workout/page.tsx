@@ -23,8 +23,15 @@ const INTENSITY_GROUPS = [
 interface ParsedWorkout {
   workout_type: WorkoutType
   duration_minutes: number
+  pts_per_hour: number  // AI-assessed effort rate
   points: number
   summary: string
+}
+
+interface ClarificationNeeded {
+  needs_clarification: true
+  question: string
+  options: string[]
 }
 
 function LogWorkoutInner() {
@@ -46,6 +53,7 @@ function LogWorkoutInner() {
   const [quickText, setQuickText] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState<ParsedWorkout | null>(null)
+  const [clarification, setClarification] = useState<ClarificationNeeded | null>(null)
   const [parseError, setParseError] = useState('')
 
   // Scan state
@@ -124,7 +132,7 @@ function LogWorkoutInner() {
     }
   }
 
-  async function handleParse() {
+  async function handleParse(clarificationAnswer?: string) {
     if (!quickText.trim()) return
     setParsing(true)
     setParseError('')
@@ -134,11 +142,22 @@ function LogWorkoutInner() {
       const res = await fetch('/api/parse-workout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: quickText }),
+        body: JSON.stringify({ description: quickText, clarification: clarificationAnswer }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to parse')
-      setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
+
+      if (data.needs_clarification) {
+        setClarification(data)
+        return
+      }
+
+      setClarification(null)
+      // Use AI's pts_per_hour × duration, then apply early bird on top
+      const pph = data.pts_per_hour || 7
+      const basePoints = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
+      const finalPoints = Math.round(basePoints * earlyBird)
+      setParsed({ ...data, pts_per_hour: pph, points: finalPoints })
     } catch (err: any) {
       setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
     } finally {
@@ -218,7 +237,7 @@ function LogWorkoutInner() {
         {/* Tab toggle */}
         <div className="flex bg-gray-900 rounded-xl p-1">
           <button
-            onClick={() => { setTab('quick'); setParsed(null); setParseError('') }}
+            onClick={() => { setTab('quick'); setParsed(null); setClarification(null); setParseError('') }}
             className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
               tab === 'quick' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
             }`}
@@ -241,7 +260,7 @@ function LogWorkoutInner() {
             {/* Mode toggle */}
             <div className="flex bg-gray-900 rounded-xl p-1">
               <button
-                onClick={() => { setQuickMode('text'); setParsed(null); setParseError('') }}
+                onClick={() => { setQuickMode('text'); setParsed(null); setClarification(null); setParseError('') }}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                   quickMode === 'text' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
@@ -249,7 +268,7 @@ function LogWorkoutInner() {
                 ✍️ Describe it
               </button>
               <button
-                onClick={() => { setQuickMode('scan'); setParsed(null); setParseError('') }}
+                onClick={() => { setQuickMode('scan'); setParsed(null); setClarification(null); setParseError('') }}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                   quickMode === 'scan' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
@@ -259,7 +278,7 @@ function LogWorkoutInner() {
             </div>
 
             {/* TEXT MODE */}
-            {quickMode === 'text' && !parsed && (
+            {quickMode === 'text' && !parsed && !clarification && (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">
@@ -275,7 +294,7 @@ function LogWorkoutInner() {
                 </div>
                 {parseError && <p className="text-red-400 text-sm">{parseError}</p>}
                 <button
-                  onClick={handleParse}
+                  onClick={() => handleParse()}
                   disabled={parsing || !quickText.trim()}
                   className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 disabled:text-green-700 text-black font-bold py-3 rounded-xl transition-colors"
                 >
@@ -288,8 +307,36 @@ function LogWorkoutInner() {
               </div>
             )}
 
+            {/* CLARIFICATION STEP */}
+            {quickMode === 'text' && clarification && !parsed && (
+              <div className="space-y-4">
+                <div className="bg-gray-900 border border-yellow-700/50 rounded-2xl p-4">
+                  <p className="text-xs text-yellow-400 font-medium mb-2 uppercase tracking-wide">One quick question</p>
+                  <p className="text-white text-sm font-medium mb-4">{clarification.question}</p>
+                  <div className="space-y-2">
+                    {clarification.options.map(option => (
+                      <button
+                        key={option}
+                        onClick={() => handleParse(option)}
+                        disabled={parsing}
+                        className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white text-sm py-3 px-4 rounded-xl text-left transition-colors border border-gray-700 hover:border-green-600"
+                      >
+                        {parsing ? <span className="flex items-center gap-2"><span className="animate-spin">⚙️</span> Calculating...</span> : option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setClarification(null)}
+                  className="w-full text-gray-500 text-sm py-2"
+                >
+                  ← Edit description
+                </button>
+              </div>
+            )}
+
             {/* SCAN MODE */}
-            {quickMode === 'scan' && !parsed && (
+            {quickMode === 'scan' && !parsed && !clarification && (
               <div className="space-y-4">
                 <p className="text-sm text-gray-400">
                   Upload a screenshot from Whoop, Apple Watch, Peloton, Strava, Garmin — AI will read your stats automatically.
@@ -365,7 +412,9 @@ function LogWorkoutInner() {
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold text-green-400">{parsed.points}</p>
-                      <p className="text-xs text-gray-400 mt-1">Points{isEarlyBird ? ' 🌅' : ''}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {parsed.pts_per_hour} pts/hr{isEarlyBird ? ' 🌅' : ''}
+                      </p>
                     </div>
                   </div>
 
@@ -375,7 +424,10 @@ function LogWorkoutInner() {
                       <label className="block text-xs text-gray-500 mb-1">Type</label>
                       <select
                         value={parsed.workout_type}
-                        onChange={e => setParsed({ ...parsed, workout_type: e.target.value as WorkoutType, points: calculatePoints(e.target.value as WorkoutType, parsed.duration_minutes, earlyBird) })}
+                        onChange={e => {
+                          const newType = e.target.value as WorkoutType
+                          setParsed({ ...parsed, workout_type: newType, points: Math.round(parsed.pts_per_hour * (parsed.duration_minutes / 60) * earlyBird) })
+                        }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       >
                         {WORKOUT_TYPES.map(t => (
@@ -389,8 +441,8 @@ function LogWorkoutInner() {
                         type="number"
                         value={parsed.duration_minutes}
                         onChange={e => {
-                          const d = Math.max(10, Math.min(300, Number(e.target.value)))
-                          setParsed({ ...parsed, duration_minutes: d, points: calculatePoints(parsed.workout_type, d, earlyBird) })
+                          const d = Math.max(10, Math.min(480, Number(e.target.value)))
+                          setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60) * earlyBird)) })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       />
@@ -412,7 +464,7 @@ function LogWorkoutInner() {
                 </button>
 
                 <button
-                  onClick={() => { setParsed(null); setScanFile(null); setScanPreview(null) }}
+                  onClick={() => { setParsed(null); setClarification(null); setScanFile(null); setScanPreview(null) }}
                   className="w-full text-gray-500 text-sm py-2"
                 >
                   Re-analyze

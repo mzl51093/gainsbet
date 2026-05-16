@@ -1,52 +1,140 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-import { calculatePoints } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const VALID_TYPES = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
 
+// ─── AI prompt ────────────────────────────────────────────────────────────────
+// AI assesses actual effort level and returns pts_per_hour directly.
+// This lets it distinguish a jog from a sprint, yoga from hot yoga, etc.
+// Points = pts_per_hour × (duration / 60) — computed by our code, not the AI.
+
+const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, determine the effort level and return ONLY valid JSON.
+
+EFFORT SCALE — pts_per_hour based on actual cardiovascular and physical exertion:
+16: Absolute max — Murph, death circuit, all-out sprint intervals
+14: Very hard — intense HIIT, CrossFit WODs, race pace
+12: Hard — tempo run, heavy lifting session, competitive swim
+10: Moderate-high — jogging, moderate cycling, vigorous sports, bootcamp
+8:  Moderate — brisk walk, casual sports, light jogging, reformer pilates
+6:  Light-moderate — easy hike, active yoga, leisurely cycling, shooting hoops
+4:  Light — slow walk, casual swim, easy stretching, recreational ping pong
+2:  Very light — golf cart, slow stroll, light stretching
+
+ACTIVITY CALIBRATION (use these as anchors — adjust up/down based on context clues):
+Running:
+  easy jog → 8 | regular run → 10 | tempo/race pace → 12 | sprint intervals → 14
+
+Lifting / strength:
+  light machine work → 8 | moderate lifting → 10 | heavy compound lifts → 12 | max effort (squat/deadlift day) → 14
+
+HIIT / circuits:
+  moderate bootcamp → 10 | hard intervals → 12 | Murph / max effort → 14-16
+
+Cycling:
+  casual bike ride → 6 | moderate road cycling → 8 | hard Peloton/spin → 11
+
+Swimming:
+  recreational splashing → 4 | easy laps → 8 | swim workout → 11
+
+Hiking:
+  flat easy trail → 5 | moderate hills → 8 | strenuous mountain (significant elevation) → 11
+
+Basketball:
+  shooting around → 4 | casual pickup game → 7 | competitive full-court → 10
+
+Soccer / tennis / pickleball:
+  recreational → 7 | competitive match → 10
+
+Volleyball:
+  casual backyard → 4 | competitive → 8
+
+Softball / baseball:
+  → 5 (lots of standing between plays regardless of pace)
+
+Yoga:
+  restorative / gentle → 3 | vinyasa → 5 | hot yoga / power yoga → 8
+
+Pilates:
+  mat pilates → 5 | reformer → 7
+
+Golf:
+  riding a cart, 18 holes → pts_per_hour: 1, duration: 240 (total ~4 pts)
+  walking the course, 18 holes → pts_per_hour: 3, duration: 270 (total ~14 pts)
+  riding a cart, 9 holes → pts_per_hour: 1, duration: 120 (total ~2 pts)
+  walking the course, 9 holes → pts_per_hour: 3, duration: 135 (total ~6 pts)
+  driving range only → pts_per_hour: 2, duration: 60 (total ~2 pts)
+
+Ping pong / table tennis:
+  casual → 3 | competitive → 6
+
+Elliptical / rowing / stairmaster → 9
+Jump rope → 11
+Boxing / martial arts → 10-12
+Dancing → 5-8 depending on intensity
+
+RETURN FORMAT (single JSON object, no markdown):
+{"workout_type":"running","duration_minutes":45,"pts_per_hour":10,"summary":"Easy 45-min jog, moderate pace"}
+
+workout_type must be one of: hiit, running, strength, swimming, cycling, sports, cardio, walking, flexibility, other
+  - Use the closest match for display/emoji purposes (e.g. pickleball → sports, hiking → walking, pilates → flexibility)
+  - The pts_per_hour you set overrides the type's default rate, so pick what fits best
+
+CLARIFICATION — only ask when BOTH are true:
+  1. The effort level is genuinely unclear from the description
+  2. The score difference between interpretations is large (>6 pts)
+
+When needed, return:
+{"needs_clarification":true,"question":"Your question here","options":["Option A","Option B"]}
+
+Examples of when to ask: "played golf" (walk vs ride = 2 vs 14 pts)
+Examples of when NOT to ask: "played basketball" (just assume pickup game), "went for a hike" (assume moderate), "did yoga" (assume vinyasa)`
+
+// ─── Route handler ────────────────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   try {
-    const { description } = await request.json()
+    const { description, clarification } = await request.json()
     if (!description?.trim()) {
       return NextResponse.json({ error: 'No description provided' }, { status: 400 })
     }
 
+    const combined = clarification
+      ? `${description}. Additional context: ${clarification}`
+      : description
+
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
-      system: `You are a fitness tracking assistant. Parse workout descriptions and return structured JSON.
-
-Workout types (pick the most specific match):
-HIGH intensity: hiit (circuit/intervals), running (jogging/sprints), strength (lifting/weights), swimming
-MEDIUM intensity: cycling (spin/peloton/bike), sports (basketball/tennis/soccer), cardio (elliptical/rowing/general)
-LOW intensity: walking (walks/hikes/strolls), flexibility (yoga/pilates/stretching), other
-
-Always respond with ONLY valid JSON, no explanation. Example:
-{"workout_type":"running","duration_minutes":45,"summary":"45-min outdoor run"}`,
-      messages: [{
-        role: 'user',
-        content: `Parse this workout: "${description}"`
-      }]
+      max_tokens: 200,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: `Assess this workout: "${combined}"` }]
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    // Strip markdown code blocks if Claude wrapped the JSON
     const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     const parsed = JSON.parse(cleaned)
+
+    // Clarification request — pass through as-is
+    if (parsed.needs_clarification) {
+      return NextResponse.json(parsed)
+    }
 
     const workoutType: WorkoutType = VALID_TYPES.includes(parsed.workout_type)
       ? parsed.workout_type
       : 'other'
 
-    const durationMinutes = Math.max(10, Math.min(300, Math.round(parsed.duration_minutes || 45)))
-    const points = calculatePoints(workoutType, durationMinutes)
+    const durationMinutes = Math.max(10, Math.min(480, Math.round(parsed.duration_minutes || 45)))
+    const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || 7))
+
+    // Points from rate — our code computes this, AI only provides the rate
+    const points = Math.max(1, Math.round(ptsPerHour * (durationMinutes / 60)))
 
     return NextResponse.json({
       workout_type: workoutType,
       duration_minutes: durationMinutes,
+      pts_per_hour: ptsPerHour,
       points,
       summary: parsed.summary || description,
     })
