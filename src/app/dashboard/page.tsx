@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
 import PokeSection from '@/components/PokeSection'
+import PokeTutorial from '@/components/PokeTutorial'
 import ResolutionAlert from '@/components/ResolutionAlert'
 import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
 
@@ -191,6 +192,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-950 pb-24">
       {/* Resolution celebration/loss alert — checks localStorage, shows once */}
       <ResolutionAlert currentUserId={user.id} />
+      <PokeTutorial />
 
       {/* Header */}
       <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">

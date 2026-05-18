@@ -209,42 +209,6 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
 
   return (
     <div className="space-y-4">
-      {/* Poke guide */}
-      <div className="bg-gray-900 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setGuideOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left"
-        >
-          <span className="text-white font-semibold text-sm">👆 How Pokes Work</span>
-          <span className="text-gray-500 text-xs">{guideOpen ? '▲' : '▼'}</span>
-        </button>
-        {guideOpen && (
-          <div className="px-4 pb-4 space-y-3 border-t border-gray-800 pt-3">
-            <div className="flex gap-3">
-              <span className="text-lg shrink-0">1️⃣</span>
-              <div>
-                <p className="text-white text-sm font-medium">Fun Poke 👆</p>
-                <p className="text-gray-500 text-xs">Tap the 👆 button next to anyone to poke them. They get a push notification. Just for the laughs.</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-lg shrink-0">2️⃣</span>
-              <div>
-                <p className="text-white text-sm font-medium">Challenge a Competitor 💪</p>
-                <p className="text-gray-500 text-xs">Tap 💪 next to a competitor — pick an exercise, reps, and points. They have 10 minutes to submit a video. Complete it and they earn the points.</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-lg shrink-0">3️⃣</span>
-              <div>
-                <p className="text-white text-sm font-medium">Dare a Motivator 😈</p>
-                <p className="text-gray-500 text-xs">Challenge your wife/partner — if THEY complete it with video, the points come off YOUR score. High risk, high fun.</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Section 1: Active incoming challenges */}
       {activeChallenges.length > 0 && (
         <div className="space-y-3">
