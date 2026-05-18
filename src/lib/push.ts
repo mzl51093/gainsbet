@@ -1,5 +1,12 @@
 import webpush from 'web-push'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 function initWebPush() {
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -18,7 +25,7 @@ export interface PushPayload {
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   if (!initWebPush()) return
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('subscription')
