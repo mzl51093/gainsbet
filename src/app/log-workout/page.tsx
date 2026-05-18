@@ -209,6 +209,14 @@ function LogWorkoutInner() {
       setError(insertError.message)
       setLoading(false)
     } else {
+      fetch('/api/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'workout_logged',
+          payload: { points: finalPoints, workoutType: finalType },
+        }),
+      }).catch(() => null)
       router.push('/dashboard')
     }
   }

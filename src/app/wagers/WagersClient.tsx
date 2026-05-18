@@ -652,6 +652,21 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       await supabase.from('wager_acceptances').insert({ wager_id: inserted.id, user_id: currentUserId })
     }
 
+    if (inserted) {
+      fetch('/api/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'wager_proposed',
+          payload: {
+            wagerId: inserted.id,
+            wagerTitle: inserted.title,
+            participantIds: [...teamPlayerIds, ...watcherIds],
+          },
+        }),
+      }).catch(() => null)
+    }
+
     setShowForm(false)
     setTitle(''); setDescription(''); setStakeIfPartnersWin(''); setStakeIfCompetitorsWin('')
     setTeamPlayerIds([currentUserId]); setWatcherIds([])
@@ -673,6 +688,20 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
     if (allAccepted) {
       await supabase.from('wagers').update({ status: 'active' }).eq('id', wagerId)
     }
+    fetch('/api/push/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'wager_accepted',
+        payload: {
+          wagerId,
+          wagerTitle: wager?.title,
+          proposerId: wager?.proposed_by,
+          allAccepted,
+          participantIds: everyone,
+        },
+      }),
+    }).catch(() => null)
     await fetchWagers()
   }
 
@@ -682,7 +711,18 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       status: 'resolved', winner, resolved_at: new Date().toISOString(),
     }).eq('id', wagerId)
     const wager = wagers.find(w => w.id === wagerId)
-    if (wager) await createDebtRecord(supabase, wager, winner)
+    if (wager) {
+      await createDebtRecord(supabase, wager, winner)
+      const participantIds = [...(wager.team_player_ids || []), ...(wager.watcher_ids || [])]
+      fetch('/api/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'wager_resolved',
+          payload: { wagerTitle: wager.title, winner, participantIds },
+        }),
+      }).catch(() => null)
+    }
     await fetchWagers()
     await fetchDebts()
   }
@@ -694,6 +734,17 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       double_down_extra_motivator: extraMotivator,
       double_down_extra_worker: extraWorker,
     }).eq('id', wagerId)
+    const wager = wagers.find(w => w.id === wagerId)
+    if (wager) {
+      fetch('/api/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'double_down_offered',
+          payload: { wagerTitle: wager.title, workerIds: wager.team_player_ids || [] },
+        }),
+      }).catch(() => null)
+    }
     await fetchWagers()
   }
 
