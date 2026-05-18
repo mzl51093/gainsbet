@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatRelativeTime } from '@/lib/utils'
 import { WORKOUT_TYPES, calculatePoints } from '@/lib/points'
@@ -117,9 +118,12 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId, act
                     <span className="text-xl">{wType?.emoji || '💪'}</span>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <p className="text-white font-medium text-sm">
+                        <Link
+                          href={`/player/${workout.profiles?.username || ''}`}
+                          className="text-white font-medium text-sm hover:text-green-400 transition-colors"
+                        >
                           {workout.profiles?.display_name || 'Unknown'}
-                        </p>
+                        </Link>
                         {isCompetitor && (
                           <span className="text-xs bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded-md font-medium">
                             ⚔️ vs you

@@ -53,13 +53,15 @@ export default async function DashboardPage() {
     !w.wager_acceptances?.some((a: any) => a.user_id === user.id)
   )
 
-  // Followed challenge IDs
-  const [{ data: wagerFollowRows }, { data: draftFollowRows }] = await Promise.all([
+  // Followed challenge IDs + followed users
+  const [{ data: wagerFollowRows }, { data: draftFollowRows }, { data: userFollowRows }] = await Promise.all([
     supabase.from('wager_followers').select('wager_id').eq('user_id', user.id),
     supabase.from('draft_followers').select('competition_id').eq('user_id', user.id),
+    supabase.from('user_follows').select('following_id').eq('follower_id', user.id),
   ])
   const followedWagerIds = new Set((wagerFollowRows || []).map((r: any) => r.wager_id))
   const followedDraftIds = new Set((draftFollowRows || []).map((r: any) => r.competition_id))
+  const followedUserIds = new Set((userFollowRows || []).map((r: any) => r.following_id))
 
   // Build challenge data — use Eastern date to avoid UTC-day mismatch
   const todayEasternStr = getTodayEastern()
@@ -241,6 +243,9 @@ export default async function DashboardPage() {
       }
     }
   }
+
+  // Directly followed users
+  for (const id of followedUserIds) feedUserIds.add(id)
 
   // Followed active wager participants
   for (const w of (activeWagers || [])) {
