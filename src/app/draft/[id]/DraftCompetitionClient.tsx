@@ -257,39 +257,39 @@ function RecruitingPhase({
             </button>
           </div>
         ) : (
-          <div className="bg-gray-900 rounded-2xl p-5">
-            <p className="text-gray-400 text-sm text-center">
-              {participants.length < competition.max_participants
-                ? `Waiting for ${competition.max_participants - participants.length} more player${competition.max_participants - participants.length === 1 ? '' : 's'}...`
-                : 'All players joined! Starting vote phase...'}
-            </p>
-          </div>
-        )}
+          <>
+            {participants.length < competition.max_participants && (
+              <div className="bg-gray-900 rounded-2xl p-4 text-center">
+                <p className="text-gray-500 text-sm">
+                  Waiting for {competition.max_participants - participants.length} more player{competition.max_participants - participants.length === 1 ? '' : 's'}…
+                </p>
+              </div>
+            )}
 
-        {/* Share link */}
-        <div className="bg-gray-900 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-2">Invite link</p>
-          <div className="flex gap-2">
-            <code className="flex-1 bg-gray-800 text-gray-400 rounded-lg px-3 py-2 text-xs truncate">
-              {shareUrl}
-            </code>
-            <button
-              onClick={copyLink}
-              className={`px-3 py-2 rounded-lg text-xs transition-colors ${copied ? 'bg-green-700 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
+            {/* Invite friends — prominent, above the link */}
+            <DraftInvitePanel
+              competitionId={competitionId}
+              participantIds={participants.map(p => p.user_id)}
+              initialInvitedIds={invitedIds}
+              allProfiles={allProfiles}
+            />
 
-        {/* In-app invite */}
-        {isJoined && (
-          <DraftInvitePanel
-            competitionId={competitionId}
-            participantIds={participants.map(p => p.user_id)}
-            initialInvitedIds={invitedIds}
-            allProfiles={allProfiles}
-          />
+            {/* Share link — kept as fallback */}
+            <div className="bg-gray-900 rounded-2xl p-4">
+              <p className="text-gray-500 text-xs mb-2">Or share link directly</p>
+              <div className="flex gap-2">
+                <code className="flex-1 bg-gray-800 text-gray-400 rounded-lg px-3 py-2 text-xs truncate">
+                  {shareUrl}
+                </code>
+                <button
+                  onClick={copyLink}
+                  className={`px-3 py-2 rounded-lg text-xs transition-colors ${copied ? 'bg-green-700 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </>
