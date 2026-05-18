@@ -28,6 +28,21 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
   const [signingOut, setSigningOut] = useState(false)
   const [testingPush, setTestingPush] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
+  const [announcing, setAnnouncing] = useState(false)
+
+  async function handleAnnounce() {
+    setAnnouncing(true)
+    try {
+      const res = await fetch('/api/push/announce', { method: 'POST' })
+      const json = await res.json()
+      if (res.ok) setTestResult(`Announcement sent to ${json.sent} users!`)
+      else setTestResult(`Failed: ${json.error}`)
+    } catch {
+      setTestResult('Network error')
+    } finally {
+      setAnnouncing(false)
+    }
+  }
 
   async function handleTestNotification() {
     setTestingPush(true)
@@ -194,6 +209,13 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
           className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-xl text-sm transition-colors disabled:opacity-50"
         >
           {testingPush ? 'Sending...' : 'Send me a test notification'}
+        </button>
+        <button
+          onClick={handleAnnounce}
+          disabled={announcing}
+          className="w-full bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 border border-blue-800/50 py-2 rounded-xl text-sm transition-colors disabled:opacity-50"
+        >
+          {announcing ? 'Sending...' : '📣 Announce new features to everyone'}
         </button>
         {testResult && (
           <p className={`text-xs text-center ${testResult.startsWith('Sent') ? 'text-green-400' : 'text-red-400'}`}>
