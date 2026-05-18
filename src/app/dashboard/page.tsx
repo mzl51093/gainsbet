@@ -211,10 +211,42 @@ export default async function DashboardPage() {
     draftComps = dc || []
   }
 
-  // Activity feed — show all recent workouts (social feed for the whole group)
+  // Activity feed — only people in competitions/drafts this user is in or following
+  const relevantUserIds = new Set<string>([user.id])
+
+  // From wager challenges (workers + motivators)
+  for (const challenge of challenges) {
+    for (const w of challenge.workers) relevantUserIds.add((w as any).profile.id)
+    for (const m of challenge.motivators) relevantUserIds.add((m as any).id)
+  }
+
+  // From draft competitions (participated + followed) — fetch all participant IDs
+  if (allDraftIds.length > 0) {
+    const { data: draftParticipants } = await supabase
+      .from('draft_participants')
+      .select('user_id')
+      .in('competition_id', allDraftIds)
+    for (const p of (draftParticipants || [])) relevantUserIds.add(p.user_id)
+  }
+
+  // Also pull in all wager participant IDs directly from the raw wager data
+  // (covers cases where challenges[] mapping dropped someone due to missing profile)
+  for (const w of (activeWagers || [])) {
+    const inWager =
+      (w.team_player_ids || []).includes(user.id) ||
+      (w.watcher_ids || []).includes(user.id) ||
+      followedWagerIds.has(w.id)
+    if (inWager) {
+      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+        relevantUserIds.add(id)
+      }
+    }
+  }
+
   const { data: recentWorkouts } = await supabase
     .from('workouts')
     .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
+    .in('user_id', [...relevantUserIds])
     .order('logged_at', { ascending: false })
     .limit(20)
 
