@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -25,7 +26,7 @@ interface Comment {
   body: string
   created_at: string
   user_id: string
-  profiles: { display_name: string }
+  profiles: { display_name: string; username: string }
 }
 
 interface Props {
@@ -54,7 +55,7 @@ export default function CommentsSection({ targetId, targetType, currentUserId, i
     const supabase = createClient()
     const { data } = await supabase
       .from(table)
-      .select('*, profiles(display_name)')
+      .select('*, profiles(display_name, username)')
       .eq(foreignKey, targetId)
       .order('created_at', { ascending: true })
     setComments((data as Comment[]) || [])
@@ -74,7 +75,7 @@ export default function CommentsSection({ targetId, targetType, currentUserId, i
     const { data } = await supabase
       .from(table)
       .insert({ [foreignKey]: targetId, user_id: currentUserId, body: body.trim() })
-      .select('*, profiles(display_name)')
+      .select('*, profiles(display_name, username)')
       .single()
     if (data) {
       setComments(prev => [...prev, data as Comment])
@@ -145,9 +146,9 @@ export default function CommentsSection({ targetId, targetType, currentUserId, i
                 <div key={c.id} className="flex items-start gap-2 group">
                   <div className="flex-1 bg-gray-800/60 rounded-xl px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-gray-400">
+                      <Link href={`/player/${c.profiles?.username || ''}`} className="text-xs font-medium text-gray-400 hover:text-white transition-colors">
                         {c.profiles?.display_name?.split(' ')[0]}
-                      </span>
+                      </Link>
                       <span className="text-xs text-gray-700">{formatRelativeTime(c.created_at)}</span>
                     </div>
                     <p className="text-sm text-white mt-0.5">{c.body}</p>

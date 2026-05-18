@@ -31,9 +31,18 @@ interface DraftCard {
   isFollowing: boolean
 }
 
+interface PersonCard {
+  id: string
+  display_name: string
+  username: string
+  role: string
+}
+
 interface Props {
   wagerCards: WagerCard[]
   draftCards: DraftCard[]
+  people: PersonCard[]
+  currentUserId: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -101,8 +110,9 @@ function FollowButton({
   )
 }
 
-export default function DiscoverClient({ wagerCards, draftCards }: Props) {
-  const [tab, setTab] = useState<'wagers' | 'drafts'>('wagers')
+export default function DiscoverClient({ wagerCards, draftCards, people, currentUserId }: Props) {
+  const [tab, setTab] = useState<'wagers' | 'drafts' | 'people'>('people')
+  const [query, setQuery] = useState('')
 
   const totalWagers = wagerCards.length
   const totalDrafts = draftCards.length
@@ -112,12 +122,20 @@ export default function DiscoverClient({ wagerCards, draftCards }: Props) {
       {/* Tabs */}
       <div className="flex bg-gray-900 rounded-xl p-1 mb-5">
         <button
+          onClick={() => setTab('people')}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'people' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          👥 People
+        </button>
+        <button
           onClick={() => setTab('wagers')}
           className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
             tab === 'wagers' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
           }`}
         >
-          💰 Wager Challenges {totalWagers > 0 && <span className="ml-1 opacity-70">({totalWagers})</span>}
+          💰 Wagers
         </button>
         <button
           onClick={() => setTab('drafts')}
@@ -125,7 +143,7 @@ export default function DiscoverClient({ wagerCards, draftCards }: Props) {
             tab === 'drafts' ? 'bg-green-500 text-black' : 'text-gray-400 hover:text-white'
           }`}
         >
-          🏆 Team Drafts {totalDrafts > 0 && <span className="ml-1 opacity-70">({totalDrafts})</span>}
+          🏆 Drafts
         </button>
       </div>
 
@@ -252,6 +270,62 @@ export default function DiscoverClient({ wagerCards, draftCards }: Props) {
                 )}
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* People Search */}
+      {tab === 'people' && (
+        <div className="space-y-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by name or username…"
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-9 pr-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-green-500"
+            />
+          </div>
+
+          {people
+            .filter(p => {
+              if (!query.trim()) return true
+              const q = query.toLowerCase()
+              return p.display_name.toLowerCase().includes(q) || p.username.toLowerCase().includes(q)
+            })
+            .map(p => {
+              const initials = p.display_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+              return (
+                <Link key={p.id} href={`/player/${p.username}`} className="flex items-center gap-3 bg-gray-900 hover:bg-gray-800 rounded-2xl p-4 transition-colors">
+                  <div className="w-11 h-11 rounded-xl bg-gray-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm">{p.display_name}</p>
+                    <p className="text-gray-500 text-xs">@{p.username} · {p.role}</p>
+                  </div>
+                  <span className="text-gray-600 text-sm">→</span>
+                </Link>
+              )
+            })
+          }
+
+          {people.filter(p => {
+            if (!query.trim()) return false
+            const q = query.toLowerCase()
+            return p.display_name.toLowerCase().includes(q) || p.username.toLowerCase().includes(q)
+          }).length === 0 && query.trim() && (
+            <div className="bg-gray-900 rounded-2xl p-8 text-center">
+              <p className="text-gray-500 text-sm">No one found matching "{query}"</p>
+            </div>
+          )}
+
+          {people.length === 0 && (
+            <div className="bg-gray-900 rounded-2xl p-8 text-center">
+              <p className="text-4xl mb-3">👥</p>
+              <p className="text-gray-400 text-sm">No other players yet.</p>
+            </div>
           )}
         </div>
       )}

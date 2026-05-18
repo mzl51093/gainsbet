@@ -142,9 +142,13 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
               <div key={w.profile.id}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-400">
-                      {isMe ? '👤 You' : w.profile.display_name.split(' ')[0]}
-                    </span>
+                    {isMe ? (
+                      <span className="text-xs text-gray-400">👤 You</span>
+                    ) : (
+                      <Link href={`/player/${w.profile.username}`} className="text-xs text-gray-400 hover:text-white transition-colors">
+                        {w.profile.display_name.split(' ')[0]}
+                      </Link>
+                    )}
                     {!w.onTrack && <span className="text-xs text-red-400">⚠</span>}
                   </div>
                   <div className="flex items-center gap-1">
@@ -183,9 +187,9 @@ function WorkerCard({ challenge, userId }: { challenge: ChallengeData; userId: s
           <p className="text-xs text-gray-600 uppercase tracking-wide mb-1.5">Motivators</p>
           <div className="flex flex-wrap gap-2">
             {challenge.motivators.map(m => (
-              <span key={m.id} className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg">
+              <Link key={m.id} href={`/player/${m.username}`} className="text-xs bg-gray-800 text-gray-300 hover:text-white px-2 py-1 rounded-lg transition-colors">
                 💅 {m.display_name.split(' ')[0]}
-              </span>
+              </Link>
             ))}
           </div>
         </div>
@@ -285,7 +289,7 @@ function MotivatorCard({ challenge, userId }: { challenge: ChallengeData; userId
           {challenge.workers.map(w => (
             <div key={w.profile.id}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">{w.profile.display_name.split(' ')[0]}</span>
+                <Link href={`/player/${w.profile.username}`} className="text-xs text-gray-400 hover:text-white transition-colors">{w.profile.display_name.split(' ')[0]}</Link>
                 <div className="flex items-center gap-1">
                   <span className={`text-sm font-bold ${w.onTrack ? 'text-blue-400' : 'text-red-400'}`}>
                     {w.points}

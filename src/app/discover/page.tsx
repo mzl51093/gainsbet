@@ -89,16 +89,25 @@ export default async function DiscoverPage() {
     }
   })
 
+  const people = (allProfiles || [])
+    .filter((p: any) => p.id !== user.id)
+    .map((p: any) => ({
+      id: p.id as string,
+      display_name: p.display_name as string,
+      username: p.username as string,
+      role: p.role as string,
+    }))
+
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
       <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">
         <div className="max-w-lg mx-auto">
           <h1 className="text-2xl font-bold text-white">Explore</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Follow challenges to get updates in your feed</p>
+          <p className="text-gray-400 text-sm mt-0.5">Find people, follow challenges, see what's happening</p>
         </div>
       </div>
       <div className="max-w-lg mx-auto px-4 pt-5">
-        <DiscoverClient wagerCards={wagerCards} draftCards={draftCards} />
+        <DiscoverClient wagerCards={wagerCards} draftCards={draftCards} people={people} currentUserId={user.id} />
       </div>
       <BottomNav />
     </div>
