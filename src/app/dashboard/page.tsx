@@ -5,6 +5,7 @@ import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
+import PokeSection from '@/components/PokeSection'
 import ResolutionAlert from '@/components/ResolutionAlert'
 import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
 
@@ -152,6 +153,23 @@ export default async function DashboardPage() {
     }
   }
 
+  // Active incoming challenge pokes for current user
+  const { data: activeChallenges } = await supabase
+    .from('pokes')
+    .select('*, from_profile:profiles!pokes_from_user_id_fkey(display_name)')
+    .eq('to_user_id', user.id)
+    .eq('type', 'challenge')
+    .eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+
+  // Other users for poke buttons (everyone except current user)
+  const otherUsers = (allProfiles || []).filter(p => p.id !== user.id).map(p => ({
+    id: p.id,
+    display_name: p.display_name,
+    username: p.username,
+  }))
+
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
     .from('workouts')
@@ -221,6 +239,13 @@ export default async function DashboardPage() {
 
         {/* Live competitions — hero section */}
         <LiveChallenges challenges={challenges} currentUserId={user.id} />
+
+        {/* Poke section */}
+        <PokeSection
+          currentUserId={user.id}
+          otherUsers={otherUsers}
+          initialActiveChallenges={(activeChallenges as any) || []}
+        />
 
         {/* Activity Feed */}
         <div>
