@@ -8,6 +8,7 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
+  const [venmoUsername, setVenmoUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,7 +23,12 @@ export default function OnboardingPage() {
 
     const { error } = await supabase
       .from('profiles')
-      .update({ display_name: displayName, username: username.toLowerCase(), role: 'competitor' })
+      .update({
+        display_name: displayName,
+        username: username.toLowerCase(),
+        role: 'competitor',
+        ...(venmoUsername.trim() ? { venmo_username: venmoUsername.replace('@', '').trim() } : {}),
+      })
       .eq('id', user.id)
 
     if (error) {
@@ -67,6 +73,24 @@ export default function OnboardingPage() {
               maxLength={20}
               className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">
+              Venmo Username <span className="text-gray-600">(optional)</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <input
+                type="text"
+                value={venmoUsername}
+                onChange={e => setVenmoUsername(e.target.value.replace('@', ''))}
+                placeholder="garygains"
+                maxLength={30}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-8 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <p className="text-gray-600 text-xs mt-1">So teammates can pay you after competitions</p>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
