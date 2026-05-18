@@ -123,7 +123,12 @@ function RecruitingPhase({
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [editingSize, setEditingSize] = useState(false)
+  const [newSize, setNewSize] = useState(competition.max_participants)
+  const [sizeError, setSizeError] = useState('')
+  const [savingSize, setSavingSize] = useState(false)
 
+  const isOrganizer = currentUserId === competition.created_by
   const isJoined = participants.some((p) => p.user_id === currentUserId)
   const shareUrl =
     typeof window !== 'undefined'
@@ -176,6 +181,27 @@ function RecruitingPhase({
     }
   }
 
+  async function saveSize() {
+    if (newSize === competition.max_participants) { setEditingSize(false); return }
+    setSavingSize(true)
+    setSizeError('')
+    try {
+      const res = await fetch(`/api/draft/${competitionId}/update-size`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxParticipants: newSize }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSizeError(data.error || 'Failed to update'); return }
+      setEditingSize(false)
+      onJoined() // triggers router.refresh()
+    } catch {
+      setSizeError('Something went wrong.')
+    } finally {
+      setSavingSize(false)
+    }
+  }
+
   return (
     <>
       {showTutorial && (
@@ -192,10 +218,51 @@ function RecruitingPhase({
         <div className="bg-gray-900 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-white font-semibold">Players</h2>
-            <span className="text-gray-500 text-sm">
-              {participants.length}/{competition.max_participants} joined
-            </span>
+            {editingSize ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={newSize}
+                  min={participants.length}
+                  max={20}
+                  onChange={e => setNewSize(Math.max(participants.length, parseInt(e.target.value) || participants.length))}
+                  className="w-14 bg-gray-800 text-white text-sm text-center rounded-lg px-2 py-1 border border-gray-600 focus:border-green-500 focus:outline-none"
+                />
+                <button
+                  onClick={saveSize}
+                  disabled={savingSize}
+                  className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-bold px-3 py-1 rounded-lg transition-colors"
+                >
+                  {savingSize ? '...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditingSize(false); setNewSize(competition.max_participants); setSizeError('') }}
+                  className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-sm">
+                  {participants.length}/{competition.max_participants} joined
+                </span>
+                {isOrganizer && (
+                  <button
+                    onClick={() => { setEditingSize(true); setNewSize(competition.max_participants) }}
+                    className="text-gray-600 hover:text-gray-300 text-xs transition-colors"
+                    title="Change lobby size"
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+
+          {sizeError && (
+            <p className="text-red-400 text-xs mb-3">{sizeError}</p>
+          )}
 
           {/* Progress bar */}
           <div className="h-1.5 bg-gray-800 rounded-full mb-5">
