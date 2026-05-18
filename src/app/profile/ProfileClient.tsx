@@ -246,6 +246,14 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
         )}
       </div>
 
+      {/* Help */}
+      <a
+        href="/rules"
+        className="block w-full text-center bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-400 font-medium py-3 rounded-xl transition-colors"
+      >
+        📖 Rules, Scoring & FAQ
+      </a>
+
       {/* Sign out */}
       <button
         onClick={handleSignOut}

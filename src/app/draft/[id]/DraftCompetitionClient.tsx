@@ -1275,6 +1275,9 @@ export default function DraftCompetitionClient({
             Goal: {competition.point_goal} pts
             {competition.wager_description && ` · ${competition.wager_description}`}
           </p>
+          <Link href="/rules" className="text-xs text-gray-600 hover:text-gray-400 transition-colors mt-1 inline-block">
+            Full rules & scoring guide →
+          </Link>
         </div>
       </div>
 
