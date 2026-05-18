@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import type { Profile } from '@/lib/types'
@@ -211,9 +212,49 @@ export default async function DashboardPage() {
     draftComps = dc || []
   }
 
+  // Build feed: find all user IDs the current user is connected to via challenges
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const relevantUserIds = new Set<string>([user.id])
+
+  // Separate simple queries — array containment works reliably this way
+  const [
+    { data: asPlayer },
+    { data: asWatcher },
+  ] = await Promise.all([
+    admin.from('wagers').select('team_player_ids, watcher_ids').contains('team_player_ids', [user.id]),
+    admin.from('wagers').select('team_player_ids, watcher_ids').contains('watcher_ids', [user.id]),
+  ])
+  for (const w of [...(asPlayer || []), ...(asWatcher || [])]) {
+    for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+      relevantUserIds.add(id)
+    }
+  }
+
+  // Followed wagers
+  for (const w of (activeWagers || [])) {
+    if (followedWagerIds.has(w.id)) {
+      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+        relevantUserIds.add(id)
+      }
+    }
+  }
+
+  // Draft competitions (participated + followed)
+  if (allDraftIds.length > 0) {
+    const { data: draftParticipants } = await admin
+      .from('draft_participants')
+      .select('user_id')
+      .in('competition_id', allDraftIds)
+    for (const p of (draftParticipants || [])) relevantUserIds.add(p.user_id)
+  }
+
   const { data: recentWorkouts } = await supabase
     .from('workouts')
     .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
+    .in('user_id', [...relevantUserIds])
     .order('logged_at', { ascending: false })
     .limit(20)
 
