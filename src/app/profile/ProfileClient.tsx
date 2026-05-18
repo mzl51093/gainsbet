@@ -24,6 +24,7 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [displayName, setDisplayName] = useState(profile.display_name)
+  const [venmoUsername, setVenmoUsername] = useState((profile as any).venmo_username || '')
   const [saving, setSaving] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [testingPush, setTestingPush] = useState(false)
@@ -65,7 +66,10 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
   async function handleSave() {
     setSaving(true)
     const supabase = createClient()
-    await supabase.from('profiles').update({ display_name: displayName }).eq('id', profile.id)
+    await supabase.from('profiles').update({
+      display_name: displayName,
+      venmo_username: venmoUsername.replace('@', '').trim() || null,
+    }).eq('id', profile.id)
     setEditing(false)
     setSaving(false)
     router.refresh()
@@ -90,14 +94,32 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
           </div>
           <div className="flex-1">
             {editing ? (
-              <input
-                type="text"
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-1 text-white w-full focus:outline-none focus:border-green-500"
-              />
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Display name"
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-1 text-white w-full focus:outline-none focus:border-green-500"
+                />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-sm">$</span>
+                  <input
+                    type="text"
+                    value={venmoUsername}
+                    onChange={e => setVenmoUsername(e.target.value.replace('@', ''))}
+                    placeholder="Venmo username"
+                    className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-1 text-white w-full focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
             ) : (
-              <h2 className="text-xl font-bold text-white">{profile.display_name}</h2>
+              <div>
+                <h2 className="text-xl font-bold text-white">{profile.display_name}</h2>
+                {(profile as any).venmo_username && (
+                  <p className="text-blue-400 text-xs mt-0.5">💸 @{(profile as any).venmo_username}</p>
+                )}
+              </div>
             )}
             <p className="text-gray-500 text-sm">@{profile.username}</p>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${

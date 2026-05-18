@@ -10,6 +10,7 @@ interface Profile {
   display_name: string
   username: string
   avatar_url?: string | null
+  venmo_username?: string | null
 }
 
 interface Participant {
@@ -1014,25 +1015,26 @@ function CompletedPhase({
       .reduce((sum, w) => sum + w.points, 0)
   }
 
-  const teamATotal = teamAParticipants.reduce(
-    (sum, p) => sum + getMemberPoints(p.user_id),
-    0
-  )
-  const teamBTotal = teamBParticipants.reduce(
-    (sum, p) => sum + getMemberPoints(p.user_id),
-    0
-  )
+  const teamATotal = teamAParticipants.reduce((sum, p) => sum + getMemberPoints(p.user_id), 0)
+  const teamBTotal = teamBParticipants.reduce((sum, p) => sum + getMemberPoints(p.user_id), 0)
 
   const captainAName =
-    participants.find((p) => p.user_id === competition.captain_a_id)?.profiles.display_name ||
-    'Team A'
+    participants.find((p) => p.user_id === competition.captain_a_id)?.profiles.display_name || 'Team A'
   const captainBName =
-    participants.find((p) => p.user_id === competition.captain_b_id)?.profiles.display_name ||
-    'Team B'
+    participants.find((p) => p.user_id === competition.captain_b_id)?.profiles.display_name || 'Team B'
 
   const winnerTeam = competition.winner_team
-  const winnerName =
-    winnerTeam === 'a' ? captainAName : winnerTeam === 'b' ? captainBName : null
+  const loserTeam = winnerTeam === 'a' ? 'b' : winnerTeam === 'b' ? 'a' : null
+  const winnerName = winnerTeam === 'a' ? captainAName : winnerTeam === 'b' ? captainBName : null
+
+  const winnerParticipants = winnerTeam ? participants.filter((p) => p.team === winnerTeam) : []
+  const loserParticipants = loserTeam ? participants.filter((p) => p.team === loserTeam) : []
+
+  const note = encodeURIComponent(`GainsBet: ${competition.name}${competition.wager_description ? ' — ' + competition.wager_description : ''}`)
+
+  function venmoLink(username: string) {
+    return `https://venmo.com/${username}?txn=pay&note=${note}`
+  }
 
   return (
     <div className="space-y-4">
@@ -1047,6 +1049,9 @@ function CompletedPhase({
         ) : (
           <h2 className="text-white text-xl font-bold">Competition Complete!</h2>
         )}
+        {competition.wager_description && (
+          <p className="text-amber-400 text-sm mt-2">💰 {competition.wager_description}</p>
+        )}
       </div>
 
       {/* Final scores */}
@@ -1057,37 +1062,63 @@ function CompletedPhase({
         ].map(({ name, total, team, letter }) => (
           <div
             key={letter}
-            className={`bg-gray-900 rounded-2xl p-4 ${
-              winnerTeam === letter ? 'ring-2 ring-yellow-500/50' : ''
-            }`}
+            className={`bg-gray-900 rounded-2xl p-4 ${winnerTeam === letter ? 'ring-2 ring-yellow-500/50' : ''}`}
           >
             <div className="flex items-center gap-2 mb-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  letter === 'a' ? 'bg-blue-500' : 'bg-red-500'
-                }`}
-              />
+              <div className={`w-3 h-3 rounded-full ${letter === 'a' ? 'bg-blue-500' : 'bg-red-500'}`} />
               <span className="text-white text-sm font-semibold truncate">{name}</span>
               {winnerTeam === letter && <span className="text-yellow-400 text-xs ml-auto">W</span>}
             </div>
-            <p
-              className={`text-2xl font-bold mb-3 ${
-                letter === 'a' ? 'text-blue-400' : 'text-red-400'
-              }`}
-            >
+            <p className={`text-2xl font-bold mb-3 ${letter === 'a' ? 'text-blue-400' : 'text-red-400'}`}>
               {total} pts
             </p>
             {team.map((p) => (
               <div key={p.user_id} className="flex justify-between py-0.5">
-                <span className="text-gray-400 text-xs">
-                  {p.profiles.display_name.split(' ')[0]}
-                </span>
+                <span className="text-gray-400 text-xs">{p.profiles.display_name.split(' ')[0]}</span>
                 <span className="text-gray-500 text-xs">{getMemberPoints(p.user_id)} pts</span>
               </div>
             ))}
           </div>
         ))}
       </div>
+
+      {/* Venmo pay section */}
+      {loserParticipants.length > 0 && winnerParticipants.length > 0 && (
+        <div className="bg-gray-900 rounded-2xl p-5">
+          <h3 className="text-white font-semibold mb-1">💸 Settle Up</h3>
+          <p className="text-gray-500 text-sm mb-4">
+            Losers — tap to pay each winner on Venmo.
+          </p>
+          <div className="space-y-2">
+            {winnerParticipants.map((p) => {
+              const venmo = p.profiles.venmo_username
+              return (
+                <div key={p.user_id} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-white text-sm font-medium">{p.profiles.display_name.split(' ')[0]}</p>
+                    {venmo && <p className="text-gray-500 text-xs">@{venmo}</p>}
+                  </div>
+                  {venmo ? (
+                    <a
+                      href={venmoLink(venmo)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                    >
+                      Pay on Venmo
+                    </a>
+                  ) : (
+                    <span className="text-gray-600 text-xs">No Venmo set</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-gray-700 text-xs mt-3 text-center">
+            Winners: add your Venmo in Profile settings
+          </p>
+        </div>
+      )}
     </div>
   )
 }
