@@ -25,6 +25,16 @@ function getPickerForPick(
   }
 }
 
+const DRAFT_COMPLETE_MESSAGES = [
+  "Rosters locked. No more hiding — time to earn it. 🏋️",
+  "Teams set. Someone's getting humbled. Let's find out who. 💀",
+  "The draft is DONE. May the gains be ever in your favor. 💪",
+  "All picked. The only question now: who actually shows up. ⚡",
+  "Rosters sealed. Captains, start the clock. Let the suffering begin. 🔥",
+  "Draft complete. Zero excuses left. Time to suffer beautifully. 😤",
+  "Teams locked in. Go log a workout before they even configure it. 🚀",
+]
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -96,10 +106,8 @@ export async function POST(
     .eq('competition_id', id)
     .eq('user_id', pickedUserId)
 
-  const newPickNumber = comp.pick_number + 1
-
-  // Check if all non-captain participants have been picked
-  const unpickedNonCaptains = participants?.filter(
+  // Find remaining unpicked non-captains (excluding the player we just picked)
+  const stillUnpicked = (participants || []).filter(
     (p) =>
       p.team === null &&
       p.user_id !== pickedUserId &&
@@ -107,7 +115,21 @@ export async function POST(
       p.user_id !== comp.captain_b_id
   )
 
-  const allPicked = (unpickedNonCaptains?.length || 0) === 0
+  let allPicked = stillUnpicked.length === 0
+  let newPickNumber = comp.pick_number + 1
+
+  // Auto-pick the last remaining player — no decision needed
+  if (stillUnpicked.length === 1) {
+    const lastPlayer = stillUnpicked[0]
+    const autoTeam = team === 'a' ? 'b' : 'a'
+    await admin
+      .from('draft_participants')
+      .update({ team: autoTeam })
+      .eq('competition_id', id)
+      .eq('user_id', lastPlayer.user_id)
+    newPickNumber += 1
+    allPicked = true
+  }
 
   await admin
     .from('draft_competitions')
@@ -117,7 +139,7 @@ export async function POST(
     })
     .eq('id', id)
 
-  // Get picked user's display name for notification
+  // Notifications
   const { data: pickedProfile } = await admin
     .from('profiles')
     .select('display_name')
@@ -133,14 +155,19 @@ export async function POST(
   const pickedName = pickedProfile?.display_name?.split(' ')[0] || 'Someone'
   const captainName = captainProfile?.display_name?.split(' ')[0] || 'Captain'
 
-  const notif = {
-    type: 'draft_pick',
-    title: `${pickedName} was picked by ${captainName}!`,
-    body: allPicked
-      ? `Draft complete! Captains are now configuring the competition.`
-      : `The draft continues in "${comp.name}".`,
-    url: `/draft/${id}`,
-  }
+  const notif = allPicked
+    ? {
+        type: 'draft_complete',
+        title: `🔥 Rosters locked — "${comp.name}"`,
+        body: DRAFT_COMPLETE_MESSAGES[Math.floor(Math.random() * DRAFT_COMPLETE_MESSAGES.length)],
+        url: `/draft/${id}`,
+      }
+    : {
+        type: 'draft_pick',
+        title: `${pickedName} was picked by ${captainName}!`,
+        body: `The draft continues in "${comp.name}".`,
+        url: `/draft/${id}`,
+      }
 
   await Promise.all([
     sendPushToAll(participantIds, notif),

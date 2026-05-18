@@ -668,31 +668,57 @@ function DraftingPhase({
       {/* Available players */}
       {available.length > 0 && (
         <div className="bg-gray-900 rounded-2xl p-4">
-          <h3 className="text-white text-sm font-semibold mb-3">
-            Available Players ({available.length})
-          </h3>
-          <div className="space-y-2">
-            {available.map((p) => (
-              <div
-                key={p.user_id}
-                className="flex items-center gap-3 py-1.5"
-              >
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold text-white">
-                  {p.profiles.display_name[0]}
+          {available.length === 1 ? (
+            /* Last player — no decision needed, auto-pick */
+            <div className="text-center">
+              <p className="text-gray-400 text-xs mb-3">Last player remaining — auto-pick!</p>
+              <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3 mb-4">
+                <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold text-white">
+                  {available[0].profiles.display_name[0]}
                 </div>
-                <span className="text-gray-300 text-sm flex-1">{p.profiles.display_name}</span>
-                {isMyTurn && (
-                  <button
-                    onClick={() => makePick(p.user_id)}
-                    disabled={picking}
-                    className="bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold px-4 py-1.5 rounded-lg text-xs transition-colors"
-                  >
-                    Pick
-                  </button>
-                )}
+                <span className="text-white text-sm flex-1 text-left">{available[0].profiles.display_name}</span>
               </div>
-            ))}
-          </div>
+              {isMyTurn && (
+                <button
+                  onClick={() => makePick(available[0].user_id)}
+                  disabled={picking}
+                  className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  {picking ? 'Locking in...' : '⚡ Lock In Rosters — LET\'S GO'}
+                </button>
+              )}
+              {!isMyTurn && (
+                <p className="text-gray-500 text-sm">
+                  <span className="text-white font-medium">{currentPickerName}</span> is locking in the last pick...
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <h3 className="text-white text-sm font-semibold mb-3">
+                Available Players ({available.length})
+              </h3>
+              <div className="space-y-2">
+                {available.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-3 py-1.5">
+                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold text-white">
+                      {p.profiles.display_name[0]}
+                    </div>
+                    <span className="text-gray-300 text-sm flex-1">{p.profiles.display_name}</span>
+                    {isMyTurn && (
+                      <button
+                        onClick={() => makePick(p.user_id)}
+                        disabled={picking}
+                        className="bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold px-4 py-1.5 rounded-lg text-xs transition-colors"
+                      >
+                        Pick
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
         </div>
       )}
