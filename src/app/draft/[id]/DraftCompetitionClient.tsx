@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import DraftTutorial, { hasDraftTutorialBeenSeen } from '@/components/DraftTutorial'
+import DraftChat from './DraftChat'
 
 interface Profile {
   id: string
@@ -52,6 +53,15 @@ interface Workout {
   profiles: { display_name: string; username: string }
 }
 
+interface ChatMessage {
+  id: string
+  user_id: string
+  channel: string
+  content: string
+  created_at: string
+  profiles: { display_name: string; username: string } | null
+}
+
 interface Props {
   competition: Competition
   participants: Participant[]
@@ -61,6 +71,9 @@ interface Props {
   pendingWorkouts: Workout[]
   currentUserId: string
   competitionId: string
+  myTeam: 'a' | 'b' | null
+  initialGroupMessages: ChatMessage[]
+  initialTeamMessages: ChatMessage[]
 }
 
 function getPickerForPick(
@@ -1155,6 +1168,9 @@ export default function DraftCompetitionClient({
   pendingWorkouts: initialPendingWorkouts,
   currentUserId,
   competitionId,
+  myTeam,
+  initialGroupMessages,
+  initialTeamMessages,
 }: Props) {
   const router = useRouter()
   const [competition, setCompetition] = useState(initialCompetition)
@@ -1272,6 +1288,28 @@ export default function DraftCompetitionClient({
             workouts={workouts}
           />
         )}
+
+        {/* Chat — visible to participants in all phases */}
+        {participants.some(p => p.user_id === currentUserId) && (() => {
+          const captainAName =
+            participants.find(p => p.user_id === competition.captain_a_id)?.profiles.display_name ?? 'Team A'
+          const captainBName =
+            participants.find(p => p.user_id === competition.captain_b_id)?.profiles.display_name ?? 'Team B'
+          const teamName = myTeam === 'a' ? captainAName : myTeam === 'b' ? captainBName : ''
+          return (
+            <div className="mt-4 mb-2">
+              <h2 className="text-white font-semibold text-sm mb-3 px-1">Chat</h2>
+              <DraftChat
+                competitionId={competitionId}
+                currentUserId={currentUserId}
+                myTeam={myTeam}
+                initialGroupMessages={initialGroupMessages}
+                initialTeamMessages={initialTeamMessages}
+                teamName={teamName}
+              />
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

@@ -83,6 +83,30 @@ export default async function DraftCompetitionPage({
     pendingWorkouts = pw || []
   }
 
+  // Chat: determine user's team, then fetch initial messages for each channel
+  const userParticipant = (participants || []).find(p => p.user_id === user.id)
+  const myTeam = (userParticipant?.team as 'a' | 'b' | null) ?? null
+  const teamChannel = myTeam ? `team_${myTeam}` : null
+
+  const [{ data: groupMessages }, { data: teamMessages }] = await Promise.all([
+    admin
+      .from('draft_messages')
+      .select('*, profiles!draft_messages_user_id_fkey(display_name, username)')
+      .eq('competition_id', id)
+      .eq('channel', 'group')
+      .order('created_at', { ascending: true })
+      .limit(50),
+    teamChannel
+      ? admin
+          .from('draft_messages')
+          .select('*, profiles!draft_messages_user_id_fkey(display_name, username)')
+          .eq('competition_id', id)
+          .eq('channel', teamChannel)
+          .order('created_at', { ascending: true })
+          .limit(50)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
+
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
       <DraftCompetitionClient
@@ -94,6 +118,9 @@ export default async function DraftCompetitionPage({
         pendingWorkouts={pendingWorkouts}
         currentUserId={user.id}
         competitionId={id}
+        myTeam={myTeam}
+        initialGroupMessages={groupMessages || []}
+        initialTeamMessages={teamMessages || []}
       />
       <BottomNav />
     </div>
