@@ -17,12 +17,27 @@ interface OtherUser {
   id: string
   display_name: string
   username: string
+  role: 'competitor' | 'partner'
+}
+
+interface SentChallenge {
+  id: string
+  to_user_id: string
+  exercise: string
+  reps: number
+  points: number
+  status: string
+  expires_at: string
+  created_at: string
+  completed_at: string | null
+  to_profile: { display_name: string }
 }
 
 interface Props {
   currentUserId: string
   otherUsers: OtherUser[]
   initialActiveChallenges: ActiveChallenge[]
+  initialSentChallenges: SentChallenge[]
 }
 
 function pad(n: number) {
@@ -65,8 +80,9 @@ const EXERCISES = [
 const REPS_OPTIONS = [5, 10, 15, 20]
 const POINTS_OPTIONS = [1, 2, 3]
 
-export default function PokeSection({ currentUserId, otherUsers, initialActiveChallenges }: Props) {
+export default function PokeSection({ currentUserId, otherUsers, initialActiveChallenges, initialSentChallenges }: Props) {
   const [activeChallenges, setActiveChallenges] = useState<ActiveChallenge[]>(initialActiveChallenges)
+  const [sentChallenges, setSentChallenges] = useState<SentChallenge[]>(initialSentChallenges)
   const [toast, setToast] = useState<string | null>(null)
 
   // Per-user fun-poke disabled state (key = userId, value = true if disabled)
@@ -256,6 +272,36 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
         </div>
       )}
 
+      {/* Section 1b: Challenges you sent */}
+      {sentChallenges.length > 0 && (
+        <div className="bg-gray-900 rounded-2xl p-4">
+          <h2 className="text-white font-semibold mb-3">💪 Challenges Sent</h2>
+          <div className="space-y-2">
+            {sentChallenges.map(c => {
+              const name = c.to_profile?.display_name?.split(' ')[0] || 'Someone'
+              const isPending = c.status === 'pending' && new Date(c.expires_at).getTime() > Date.now()
+              const isExpired = c.status === 'pending' && new Date(c.expires_at).getTime() <= Date.now()
+              const isDone = c.status === 'completed'
+              return (
+                <div key={c.id} className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-300 truncate">
+                      {name} — {c.reps} {c.exercise}
+                    </p>
+                    <p className="text-xs text-gray-600">{c.points} pt{c.points > 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="shrink-0">
+                    {isDone && <span className="text-green-400 text-xs font-semibold">✓ Done</span>}
+                    {isPending && <ChallengeCountdown expiresAt={c.expires_at} />}
+                    {isExpired && <span className="text-gray-600 text-xs">Expired</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Section 2: Poke someone */}
       {otherUsers.length > 0 && (
         <div className="bg-gray-900 rounded-2xl p-4">
@@ -277,13 +323,15 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
                   >
                     {pokedUsers[user.id] ? 'Poked!' : '👆'}
                   </button>
-                  <button
-                    onClick={() => openModal(user)}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/30 hover:bg-amber-600/50 text-amber-400 border border-amber-600/40 transition-colors"
-                    title="Challenge poke"
-                  >
-                    💪
-                  </button>
+                  {user.role === 'competitor' && (
+                    <button
+                      onClick={() => openModal(user)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/30 hover:bg-amber-600/50 text-amber-400 border border-amber-600/40 transition-colors"
+                      title="Challenge poke"
+                    >
+                      💪
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

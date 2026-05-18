@@ -168,7 +168,17 @@ export default async function DashboardPage() {
     id: p.id,
     display_name: p.display_name,
     username: p.username,
+    role: p.role as 'competitor' | 'partner',
   }))
+
+  // Challenges current user sent (recent, to track status)
+  const { data: sentChallenges } = await supabase
+    .from('pokes')
+    .select('*, to_profile:profiles!pokes_to_user_id_fkey(display_name)')
+    .eq('from_user_id', user.id)
+    .eq('type', 'challenge')
+    .order('created_at', { ascending: false })
+    .limit(10)
 
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
@@ -245,6 +255,7 @@ export default async function DashboardPage() {
           currentUserId={user.id}
           otherUsers={otherUsers}
           initialActiveChallenges={(activeChallenges as any) || []}
+          initialSentChallenges={(sentChallenges as any) || []}
         />
 
         {/* Activity Feed */}
