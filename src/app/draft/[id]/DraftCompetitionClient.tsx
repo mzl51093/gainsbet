@@ -95,12 +95,33 @@ function RecruitingPhase({
   const [showTutorial, setShowTutorial] = useState(false)
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
 
   const isJoined = participants.some((p) => p.user_id === currentUserId)
   const shareUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/draft/${competitionId}`
       : `/draft/${competitionId}`
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for HTTP or browsers without clipboard API
+      const el = document.createElement('textarea')
+      el.value = shareUrl
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   async function joinCompetition() {
     setJoining(true)
@@ -226,10 +247,10 @@ function RecruitingPhase({
               {shareUrl}
             </code>
             <button
-              onClick={() => navigator.clipboard.writeText(shareUrl)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs transition-colors"
+              onClick={copyLink}
+              className={`px-3 py-2 rounded-lg text-xs transition-colors ${copied ? 'bg-green-700 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}
             >
-              Copy
+              {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
         </div>
