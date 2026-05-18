@@ -323,15 +323,13 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
                   >
                     {pokedUsers[user.id] ? 'Poked!' : '👆'}
                   </button>
-                  {user.role === 'competitor' && (
-                    <button
-                      onClick={() => openModal(user)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/30 hover:bg-amber-600/50 text-amber-400 border border-amber-600/40 transition-colors"
-                      title="Challenge poke"
-                    >
-                      💪
-                    </button>
-                  )}
+                  <button
+                    onClick={() => openModal(user)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/30 hover:bg-amber-600/50 text-amber-400 border border-amber-600/40 transition-colors"
+                    title="Challenge poke"
+                  >
+                    💪
+                  </button>
                 </div>
               </div>
             ))}
@@ -420,9 +418,15 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
             </div>
 
             {/* Note */}
-            <p className="text-gray-500 text-xs text-center">
-              They have 10 minutes with video proof
-            </p>
+            {modalUser?.role === 'partner' ? (
+              <p className="text-amber-400 text-xs text-center bg-amber-900/20 rounded-lg px-3 py-2">
+                ⚠️ If {modalUser.display_name.split(' ')[0]} completes this, you lose {selectedPoints} pt{selectedPoints > 1 ? 's' : ''} from your score!
+              </p>
+            ) : (
+              <p className="text-gray-500 text-xs text-center">
+                They earn {selectedPoints} pt{selectedPoints > 1 ? 's' : ''} if they complete with video proof
+              </p>
+            )}
 
             {/* Send button */}
             <button

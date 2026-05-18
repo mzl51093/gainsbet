@@ -62,10 +62,31 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to complete challenge' }, { status: 500 })
   }
 
-  // Insert a workout for the completer
-  const { error: workoutError } = await admin
-    .from('workouts')
-    .insert({
+  // Get completer's profile (need role to determine points logic)
+  const { data: completerProfile } = await admin
+    .from('profiles')
+    .select('display_name, role')
+    .eq('id', user.id)
+    .single()
+
+  const completerName = completerProfile?.display_name?.split(' ')[0] || 'Someone'
+  const ptLabel = (poke.points ?? 1) > 1 ? 's' : ''
+  const isPartner = completerProfile?.role === 'partner'
+
+  if (isPartner) {
+    // Partner completed: subtract points from the CHALLENGER's score
+    await admin.from('workouts').insert({
+      user_id: poke.from_user_id,
+      workout_type: 'poke_penalty',
+      duration_minutes: 1,
+      points: -(poke.points ?? 1),
+      proof_url: videoUrl,
+      proof_type: 'video',
+      notes: `Poke penalty: ${completerName} completed ${poke.reps} ${poke.exercise}`,
+    })
+  } else {
+    // Competitor completed: award points to them
+    await admin.from('workouts').insert({
       user_id: user.id,
       workout_type: 'strength',
       duration_minutes: 5,
@@ -74,24 +95,15 @@ export async function POST(
       proof_type: 'video',
       notes: `Poke challenge: ${poke.reps} ${poke.exercise}`,
     })
-
-  if (workoutError) {
-    console.error('Failed to insert workout:', workoutError)
-    // Don't fail the whole request — poke is already marked complete
   }
 
-  // Get completer's display name
-  const { data: completerProfile } = await admin
-    .from('profiles')
-    .select('display_name')
-    .eq('id', user.id)
-    .single()
-
-  const completerName = completerProfile?.display_name?.split(' ')[0] || 'Someone'
-  const ptLabel = (poke.points ?? 1) > 1 ? 's' : ''
-
   // Notify the challenger
-  const notif = {
+  const notif = isPartner ? {
+    type: 'poke_challenge_completed',
+    title: `${completerName} completed your dare! 😈`,
+    body: `${poke.reps} ${poke.exercise} done. -${poke.points} pt${ptLabel} from your score.`,
+    url: '/dashboard',
+  } : {
     type: 'poke_challenge_completed',
     title: `${completerName} crushed your challenge! 💪`,
     body: `${poke.reps} ${poke.exercise} done. +${poke.points} pt${ptLabel} awarded.`,

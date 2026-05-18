@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid poke type' }, { status: 400 })
   }
 
-  // Validate target user exists
+  // Validate target user exists and get their role
   const { data: targetProfile } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, role')
     .eq('id', toUserId)
     .single()
 
@@ -93,10 +93,14 @@ export async function POST(req: NextRequest) {
     ])
   } else {
     const ptLabel = (points ?? 1) > 1 ? 's' : ''
+    const isPartner = targetProfile.role === 'partner'
+    const challengeBody = isPartner
+      ? `${reps} ${exercise} in 10 mins — complete it and ${senderName} loses ${points} pt${ptLabel} from their score! 😈`
+      : `${reps} ${exercise} in 10 mins for ${points} pt${ptLabel}. Video required!`
     const notif = {
       type: 'poke_challenge',
       title: `${senderName} challenged you! ⏱️`,
-      body: `${reps} ${exercise} in 10 mins for ${points} pt${ptLabel}. Video required!`,
+      body: challengeBody,
       url: '/dashboard',
     }
     await Promise.all([
