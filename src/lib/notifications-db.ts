@@ -12,10 +12,10 @@ function admin() {
 }
 
 export async function saveNotification(userId: string, data: NotifData) {
-  await admin().from('notifications').insert({ user_id: userId, type: data.type, title: data.title, body: data.body, url: data.url || '/dashboard' }).catch(() => null)
+  await Promise.resolve(admin().from('notifications').insert({ user_id: userId, type: data.type, title: data.title, body: data.body, url: data.url || '/dashboard' })).catch(() => null)
 }
 
 export async function saveNotifications(userIds: string[], data: NotifData) {
   if (!userIds.length) return
-  await admin().from('notifications').insert(userIds.map(user_id => ({ user_id, type: data.type, title: data.title, body: data.body, url: data.url || '/dashboard' }))).catch(() => null)
+  await Promise.resolve(admin().from('notifications').insert(userIds.map(user_id => ({ user_id, type: data.type, title: data.title, body: data.body, url: data.url || '/dashboard' })))).catch(() => null)
 }
