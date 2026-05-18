@@ -426,21 +426,28 @@ function VotingPhase({
 
         {/* Who has / hasn't voted yet */}
         {!showResults && (
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="mb-4 space-y-1">
             {participants.map(p => {
               const voted = voterIds.includes(p.user_id)
               const isMe = p.user_id === currentUserId
               return (
                 <div
                   key={p.user_id}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium ${
-                    voted
-                      ? 'bg-green-900/30 text-green-400'
-                      : 'bg-gray-800 text-gray-500'
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl ${
+                    voted ? 'bg-green-900/20' : 'bg-gray-800/60'
                   }`}
                 >
-                  <span>{voted ? '✓' : '○'}</span>
-                  <span>{p.profiles.display_name.split(' ')[0]}{isMe ? ' (you)' : ''}</span>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    voted ? 'bg-green-700 text-white' : 'bg-gray-700 text-gray-500'
+                  }`}>
+                    {voted ? '✓' : '–'}
+                  </div>
+                  <span className={`text-sm flex-1 ${voted ? 'text-white' : 'text-gray-400'}`}>
+                    {p.profiles.display_name}{isMe ? ' (you)' : ''}
+                  </span>
+                  <span className={`text-xs font-medium ${voted ? 'text-green-400' : 'text-gray-600'}`}>
+                    {voted ? 'Voted' : 'Not yet'}
+                  </span>
                 </div>
               )
             })}
