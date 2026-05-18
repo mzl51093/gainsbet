@@ -17,6 +17,11 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth')
 
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
@@ -199,18 +204,96 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
 
   const participatedDraftIds = myDraftParticipations?.map((p: any) => p.competition_id) || []
-  const allDraftIds = [...new Set([...participatedDraftIds, ...followedDraftIds])]
+  const allDraftIds = [...new Set([...participatedDraftIds, ...[...followedDraftIds]])]
 
+  // Helper: whose turn is it to pick in a snake draft?
+  function currentPickerId(comp: any): string | null {
+    if (!comp.captain_a_id || !comp.captain_b_id) return null
+    const pick = comp.pick_number || 0
+    const round = Math.floor(pick / 2)
+    const pos = pick % 2
+    if (round % 2 === 0) return pos === 0 ? comp.captain_a_id : comp.captain_b_id
+    return pos === 0 ? comp.captain_b_id : comp.captain_a_id
+  }
+
+  interface DraftAction {
+    id: string
+    name: string
+    status: string
+    urgent: boolean
+    label: string
+  }
+
+  let draftActions: DraftAction[] = []
   let draftComps: any[] = []
+
   if (allDraftIds.length > 0) {
-    const { data: dc } = await supabase
+    const { data: dc } = await admin
       .from('draft_competitions')
-      .select('id, name, status, point_goal')
+      .select('id, name, status, point_goal, captain_a_id, captain_b_id, pick_number, max_participants')
       .in('id', allDraftIds)
       .neq('status', 'completed')
       .order('created_at', { ascending: false })
-      .limit(5)
+
     draftComps = dc || []
+
+    if (draftComps.length > 0) {
+      const draftIds = draftComps.map((c: any) => c.id)
+
+      const [
+        { data: myVotes },
+        { data: myParts },
+        { data: pendingWo },
+      ] = await Promise.all([
+        admin.from('draft_captain_votes').select('competition_id').in('competition_id', draftIds).eq('voter_id', user.id),
+        admin.from('draft_participants').select('competition_id, team').in('competition_id', draftIds).eq('user_id', user.id),
+        // Pending workouts the user didn't log themselves (i.e. available to validate)
+        admin.from('workouts').select('draft_competition_id').in('draft_competition_id', draftIds).eq('validation_status', 'pending').neq('user_id', user.id),
+      ])
+
+      const votedIds = new Set((myVotes || []).map((v: any) => v.competition_id))
+      const partMap: Record<string, any> = Object.fromEntries((myParts || []).map((p: any) => [p.competition_id, p]))
+      const pendingCountMap: Record<string, number> = {}
+      for (const w of (pendingWo || [])) {
+        if (w.draft_competition_id) pendingCountMap[w.draft_competition_id] = (pendingCountMap[w.draft_competition_id] || 0) + 1
+      }
+
+      for (const comp of draftComps) {
+        const isParticipant = !!partMap[comp.id]
+        const isInvited = !isParticipant && [...followedDraftIds].includes(comp.id)
+
+        let label = ''
+        let urgent = false
+
+        if (comp.status === 'recruiting' && !isParticipant) {
+          label = '🚪 You\'re invited — Join now'
+          urgent = true
+        } else if (comp.status === 'voting' && isParticipant && !votedIds.has(comp.id)) {
+          label = '🗳️ Your vote is needed'
+          urgent = true
+        } else if (comp.status === 'drafting' && isParticipant && currentPickerId(comp) === user.id) {
+          label = '🐍 It\'s your pick!'
+          urgent = true
+        } else if (comp.status === 'drafting' && isParticipant) {
+          label = '🐍 Draft in progress'
+        } else if (comp.status === 'configuring' && isParticipant && (comp.captain_a_id === user.id || comp.captain_b_id === user.id)) {
+          label = '⚙️ Set up the competition'
+          urgent = true
+        } else if (comp.status === 'configuring' && isParticipant) {
+          label = '⏳ Waiting on captains'
+        } else if (comp.status === 'active' && isParticipant && (pendingCountMap[comp.id] || 0) > 0) {
+          const n = pendingCountMap[comp.id]
+          label = `✅ ${n} workout${n === 1 ? '' : 's'} to validate`
+          urgent = true
+        } else if (comp.status === 'recruiting' && isParticipant) {
+          label = '🤝 Waiting for players'
+        } else if (comp.status === 'active') {
+          label = '🔥 Live'
+        }
+
+        if (label) draftActions.push({ id: comp.id, name: comp.name, status: comp.status, urgent, label })
+      }
+    }
   }
 
   // Build feed user IDs from data already loaded — avoids unreliable admin .contains() on array columns
@@ -256,10 +339,6 @@ export default async function DashboardPage() {
   }
 
   // Draft competition participants (admin client for simple .in() — no array containment needed)
-  const admin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
   if (allDraftIds.length > 0) {
     const { data: draftParticipants } = await admin
       .from('draft_participants')
@@ -342,26 +421,50 @@ export default async function DashboardPage() {
         <LiveChallenges challenges={challenges} currentUserId={user.id} />
 
         {/* Team Draft section */}
-        {draftComps && draftComps.length > 0 && (
-          <div className="bg-gray-900 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-white font-semibold">🏆 Team Draft</h2>
+        {draftActions.length > 0 ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-white font-semibold">🏆 Team Drafts</h2>
               <Link href="/draft" className="text-green-400 text-xs">View all →</Link>
             </div>
-            {draftComps.map((comp: any) => (
-              <Link key={comp.id} href={`/draft/${comp.id}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
-                <span className="text-gray-300 text-sm">{comp.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  comp.status === 'active' ? 'bg-green-900/40 text-green-400' :
-                  comp.status === 'recruiting' ? 'bg-blue-900/40 text-blue-400' :
-                  'bg-gray-800 text-gray-500'
-                }`}>{comp.status}</span>
+            {draftActions.map((d) => (
+              <Link key={d.id} href={`/draft/${d.id}`}>
+                <div className={`rounded-2xl p-4 flex items-center gap-3 ${
+                  d.urgent
+                    ? 'bg-orange-900/25 border border-orange-600/50'
+                    : 'bg-gray-900 border border-gray-800'
+                }`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{d.name}</p>
+                    <p className={`text-xs mt-0.5 ${d.urgent ? 'text-orange-300' : 'text-gray-500'}`}>
+                      {d.label}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0 ${
+                    d.urgent
+                      ? 'bg-orange-500 text-black'
+                      : 'bg-gray-800 text-gray-400'
+                  }`}>
+                    {d.urgent ? 'Go →' : 'View →'}
+                  </span>
+                </div>
               </Link>
             ))}
-            <Link href="/draft/new" className="block text-center text-green-400 text-sm mt-3">
-              + Create new draft competition
+            <Link href="/draft/new" className="block text-center text-green-400 text-xs py-1">
+              + New draft competition
             </Link>
           </div>
+        ) : (
+          <Link href="/draft" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🏆</span>
+              <div className="flex-1">
+                <p className="text-white font-semibold text-sm">Team Drafts</p>
+                <p className="text-gray-500 text-xs mt-0.5">Create or join a team draft competition</p>
+              </div>
+              <span className="text-gray-600 text-sm">→</span>
+            </div>
+          </Link>
         )}
         {/* Explore CTA */}
         <Link href="/discover" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
