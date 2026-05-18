@@ -14,9 +14,10 @@ interface Props {
   initialWorkouts: WorkoutWithRelations[]
   currentUserId: string
   activeCompetitorIds?: string[]
+  allUserIds?: string[]
 }
 
-export default function ActivityFeedClient({ initialWorkouts, currentUserId, activeCompetitorIds = [] }: Props) {
+export default function ActivityFeedClient({ initialWorkouts, currentUserId, activeCompetitorIds = [], allUserIds = [] }: Props) {
   const competitorSet = new Set(activeCompetitorIds)
   const [workouts, setWorkouts] = useState(initialWorkouts)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -177,7 +178,7 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId, act
                     targetType="workout"
                     currentUserId={currentUserId}
                     initialCount={(workout.workout_comments || []).length}
-                    notifyUserIds={[workout.user_id]}
+                    notifyUserIds={allUserIds.length > 0 ? allUserIds : [workout.user_id]}
                   />
                 </div>
               </>

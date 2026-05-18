@@ -230,6 +230,7 @@ export default async function DashboardPage() {
               initialWorkouts={recentWorkouts as any}
               currentUserId={user.id}
               activeCompetitorIds={[...activeCompetitorIds]}
+              allUserIds={(allProfiles || []).map(p => p.id)}
             />
           ) : (
             <div className="bg-gray-900 rounded-2xl p-8 text-center">
