@@ -181,6 +181,26 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(10)
 
+  // Draft competitions for current user
+  const { data: myDraftParticipations } = await supabase
+    .from('draft_participants')
+    .select('competition_id')
+    .eq('user_id', user.id)
+
+  const draftCompIds = myDraftParticipations?.map((p: any) => p.competition_id) || []
+
+  let draftComps: any[] = []
+  if (draftCompIds.length > 0) {
+    const { data: dc } = await supabase
+      .from('draft_competitions')
+      .select('id, name, status, point_goal')
+      .in('id', draftCompIds)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(3)
+    draftComps = dc || []
+  }
+
   // Recent activity feed
   const { data: recentWorkouts } = await supabase
     .from('workouts')
@@ -251,6 +271,38 @@ export default async function DashboardPage() {
 
         {/* Live competitions — hero section */}
         <LiveChallenges challenges={challenges} currentUserId={user.id} />
+
+        {/* Team Draft section */}
+        {draftComps && draftComps.length > 0 && (
+          <div className="bg-gray-900 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-semibold">🏆 Team Draft</h2>
+              <Link href="/draft" className="text-green-400 text-xs">View all →</Link>
+            </div>
+            {draftComps.map((comp: any) => (
+              <Link key={comp.id} href={`/draft/${comp.id}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+                <span className="text-gray-300 text-sm">{comp.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  comp.status === 'active' ? 'bg-green-900/40 text-green-400' :
+                  comp.status === 'recruiting' ? 'bg-blue-900/40 text-blue-400' :
+                  'bg-gray-800 text-gray-500'
+                }`}>{comp.status}</span>
+              </Link>
+            ))}
+            <Link href="/draft/new" className="block text-center text-green-400 text-sm mt-3">
+              + Create new draft competition
+            </Link>
+          </div>
+        )}
+        {(!draftComps || draftComps.length === 0) && (
+          <div className="bg-gray-900 rounded-2xl p-4">
+            <h2 className="text-white font-semibold mb-1">🏆 Team Draft</h2>
+            <p className="text-gray-500 text-sm mb-3">Draft teams, race to the goal. Everyone must contribute.</p>
+            <Link href="/draft/new" className="block w-full text-center bg-green-500 hover:bg-green-400 text-black font-bold py-2 rounded-xl text-sm transition-colors">
+              Create Draft Competition
+            </Link>
+          </div>
+        )}
 
         {/* Poke section */}
         <PokeSection

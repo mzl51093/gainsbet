@@ -44,6 +44,7 @@ function LogWorkoutInner() {
   const paramType = (params.get('type') || 'strength') as WorkoutType
   const paramDuration = Number(params.get('duration') || 45)
   const paramNotes = params.get('notes') || ''
+  const draftId = params.get('draftId') || null
   const hasParams = params.has('type')
 
   const [tab, setTab] = useState<'quick' | 'detailed'>(hasParams ? 'detailed' : 'quick')
@@ -194,6 +195,10 @@ function LogWorkoutInner() {
     const finalPoints = overrideData?.points ?? detailedPoints
     const finalNotes = overrideData?.summary ?? (notes || null)
 
+    const validationStatus = draftId
+      ? (proofUrl ? 'approved' : 'pending')
+      : 'approved'
+
     const { error: insertError } = await supabase.from('workouts').insert({
       user_id: user.id,
       workout_type: finalType,
@@ -203,6 +208,7 @@ function LogWorkoutInner() {
       proof_url: proofUrl,
       proof_type: fileToUpload ? proofType : null,
       logged_at: new Date().toISOString(),
+      ...(draftId ? { draft_competition_id: draftId, validation_status: validationStatus } : {}),
     })
 
     if (insertError) {
