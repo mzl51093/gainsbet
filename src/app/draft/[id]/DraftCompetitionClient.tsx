@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import DraftTutorial, { hasDraftTutorialBeenSeen } from '@/components/DraftTutorial'
 import DraftChat from './DraftChat'
+import DraftKickoffModal, { hasKickoffBeenSeen } from './DraftKickoffModal'
 
 interface Profile {
   id: string
@@ -1178,6 +1179,9 @@ export default function DraftCompetitionClient({
   const [voteCounts, setVoteCounts] = useState(initialVoteCounts)
   const [voterIds, setVoterIds] = useState(initialVoterIds)
   const [pendingWorkouts, setPendingWorkouts] = useState(initialPendingWorkouts)
+  const [showKickoff, setShowKickoff] = useState(
+    () => initialCompetition.status === 'active' && !hasKickoffBeenSeen(competitionId)
+  )
 
   function refresh() {
     router.refresh()
@@ -1203,6 +1207,13 @@ export default function DraftCompetitionClient({
 
   return (
     <div>
+      {showKickoff && (
+        <DraftKickoffModal
+          competitionId={competitionId}
+          onDismiss={() => setShowKickoff(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">
         <div className="max-w-lg mx-auto">
