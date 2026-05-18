@@ -424,6 +424,29 @@ function VotingPhase({
           )}
         </p>
 
+        {/* Who has / hasn't voted yet */}
+        {!showResults && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {participants.map(p => {
+              const voted = voterIds.includes(p.user_id)
+              const isMe = p.user_id === currentUserId
+              return (
+                <div
+                  key={p.user_id}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium ${
+                    voted
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-gray-800 text-gray-500'
+                  }`}
+                >
+                  <span>{voted ? '✓' : '○'}</span>
+                  <span>{p.profiles.display_name.split(' ')[0]}{isMe ? ' (you)' : ''}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {hasVoted && !showResults && (
           <div className="bg-green-900/20 border border-green-700/40 rounded-xl px-4 py-3 mb-4">
             <p className="text-green-400 text-sm">Vote cast! Waiting for others...</p>
