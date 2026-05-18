@@ -1207,6 +1207,7 @@ export default function DraftCompetitionClient({
   const [showKickoff, setShowKickoff] = useState(
     () => initialCompetition.status === 'active' && !hasKickoffBeenSeen(competitionId)
   )
+  const [showHowItWorks, setShowHowItWorks] = useState(false)
 
   function refresh() {
     router.refresh()
@@ -1239,6 +1240,14 @@ export default function DraftCompetitionClient({
         />
       )}
 
+      {showHowItWorks && (
+        <DraftTutorial
+          pointGoal={competition.point_goal}
+          minPct={competition.min_contribution_pct}
+          onDismiss={() => setShowHowItWorks(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gray-900 px-4 pt-12 pb-5 border-b border-gray-800">
         <div className="max-w-lg mx-auto">
@@ -1253,6 +1262,13 @@ export default function DraftCompetitionClient({
             >
               {statusLabel[competition.status] || competition.status}
             </span>
+            <button
+              onClick={() => setShowHowItWorks(true)}
+              className="ml-auto text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+            >
+              <span className="w-4 h-4 rounded-full border border-gray-600 flex items-center justify-center text-gray-500 text-xs font-bold">?</span>
+              How it works
+            </button>
           </div>
           <h1 className="text-xl font-bold text-white">{competition.name}</h1>
           <p className="text-gray-500 text-sm mt-0.5">
