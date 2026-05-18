@@ -223,7 +223,7 @@ function LogWorkoutInner() {
           payload: { points: finalPoints, workoutType: finalType },
         }),
       }).catch(() => null)
-      router.push('/dashboard')
+      router.push(draftId ? `/draft/${draftId}` : '/dashboard')
     }
   }
 
@@ -237,6 +237,17 @@ function LogWorkoutInner() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {/* Draft competition banner */}
+        {draftId && (
+          <div className="bg-purple-900/30 border border-purple-700/50 rounded-2xl p-3 flex items-center gap-3">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <p className="text-purple-300 font-bold text-sm">Draft Competition Workout</p>
+              <p className="text-purple-600 text-xs">Upload proof for auto-approval, or submit for team vote</p>
+            </div>
+          </div>
+        )}
+
         {/* Early Bird Banner */}
         {isEarlyBird && (
           <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-2xl p-3 flex items-center gap-3">
