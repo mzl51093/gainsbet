@@ -6,6 +6,7 @@ import Link from 'next/link'
 import DraftTutorial, { hasDraftTutorialBeenSeen } from '@/components/DraftTutorial'
 import DraftChat from './DraftChat'
 import DraftKickoffModal, { hasKickoffBeenSeen } from './DraftKickoffModal'
+import DraftInvitePanel from './DraftInvitePanel'
 
 interface Profile {
   id: string
@@ -63,6 +64,12 @@ interface ChatMessage {
   profiles: { display_name: string; username: string } | null
 }
 
+interface InviteProfile {
+  id: string
+  display_name: string
+  username: string
+}
+
 interface Props {
   competition: Competition
   participants: Participant[]
@@ -75,6 +82,8 @@ interface Props {
   myTeam: 'a' | 'b' | null
   initialGroupMessages: ChatMessage[]
   initialTeamMessages: ChatMessage[]
+  allProfiles: InviteProfile[]
+  invitedIds: string[]
 }
 
 function getPickerForPick(
@@ -99,12 +108,16 @@ function RecruitingPhase({
   currentUserId,
   competitionId,
   onJoined,
+  allProfiles,
+  invitedIds,
 }: {
   competition: Competition
   participants: Participant[]
   currentUserId: string
   competitionId: string
   onJoined: () => void
+  allProfiles: InviteProfile[]
+  invitedIds: string[]
 }) {
   const [showTutorial, setShowTutorial] = useState(false)
   const [joining, setJoining] = useState(false)
@@ -268,6 +281,16 @@ function RecruitingPhase({
             </button>
           </div>
         </div>
+
+        {/* In-app invite */}
+        {isJoined && (
+          <DraftInvitePanel
+            competitionId={competitionId}
+            participantIds={participants.map(p => p.user_id)}
+            initialInvitedIds={invitedIds}
+            allProfiles={allProfiles}
+          />
+        )}
       </div>
     </>
   )
@@ -1172,6 +1195,8 @@ export default function DraftCompetitionClient({
   myTeam,
   initialGroupMessages,
   initialTeamMessages,
+  allProfiles,
+  invitedIds,
 }: Props) {
   const router = useRouter()
   const [competition, setCompetition] = useState(initialCompetition)
@@ -1245,6 +1270,8 @@ export default function DraftCompetitionClient({
             currentUserId={currentUserId}
             competitionId={competitionId}
             onJoined={refresh}
+            allProfiles={allProfiles}
+            invitedIds={invitedIds}
           />
         )}
 

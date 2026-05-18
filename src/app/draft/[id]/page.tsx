@@ -88,7 +88,7 @@ export default async function DraftCompetitionPage({
   const myTeam = (userParticipant?.team as 'a' | 'b' | null) ?? null
   const teamChannel = myTeam ? `team_${myTeam}` : null
 
-  const [{ data: groupMessages }, { data: teamMessages }] = await Promise.all([
+  const [{ data: groupMessages }, { data: teamMessages }, { data: allProfiles }, { data: existingInvites }] = await Promise.all([
     admin
       .from('draft_messages')
       .select('*, profiles!draft_messages_user_id_fkey(display_name, username)')
@@ -105,6 +105,17 @@ export default async function DraftCompetitionPage({
           .order('created_at', { ascending: true })
           .limit(50)
       : Promise.resolve({ data: [] as any[] }),
+    // All profiles for invite search (exclude current user)
+    admin
+      .from('profiles')
+      .select('id, display_name, username')
+      .neq('id', user.id)
+      .order('display_name'),
+    // Already-invited user IDs for this competition
+    admin
+      .from('draft_invites')
+      .select('invited_user_id')
+      .eq('competition_id', id),
   ])
 
   return (
@@ -121,6 +132,8 @@ export default async function DraftCompetitionPage({
         myTeam={myTeam}
         initialGroupMessages={groupMessages || []}
         initialTeamMessages={teamMessages || []}
+        allProfiles={allProfiles || []}
+        invitedIds={(existingInvites || []).map(r => r.invited_user_id)}
       />
       <BottomNav />
     </div>
