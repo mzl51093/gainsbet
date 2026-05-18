@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import type { Profile } from '@/lib/types'
@@ -211,31 +212,31 @@ export default async function DashboardPage() {
     draftComps = dc || []
   }
 
-  // Activity feed: collect all user IDs connected to current user across ALL wagers + drafts
+  // Activity feed: use admin client to reliably get all connected user IDs (bypasses RLS)
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const relevantUserIds = new Set<string>([user.id])
 
-  // All wagers user is a participant in (any status — RLS returns only theirs)
-  const { data: allUserWagers } = await supabase
+  // All wagers user is involved in (any status), plus followed active wagers
+  const wagerIdFilter = [
+    ...Array.from(followedWagerIds),
+  ]
+  const { data: allUserWagers } = await admin
     .from('wagers')
-    .select('team_player_ids, watcher_ids')
+    .select('id, team_player_ids, watcher_ids')
+    .or(`team_player_ids.cs.{${user.id}},watcher_ids.cs.{${user.id}},proposed_by.eq.${user.id}${wagerIdFilter.length ? `,id.in.(${wagerIdFilter.join(',')})` : ''}`)
+
   for (const w of (allUserWagers || [])) {
     for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
       relevantUserIds.add(id)
     }
   }
 
-  // Followed wagers (active) — already have activeWagers
-  for (const w of (activeWagers || [])) {
-    if (followedWagerIds.has(w.id)) {
-      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
-        relevantUserIds.add(id)
-      }
-    }
-  }
-
   // All draft competitions user is in or following
   if (allDraftIds.length > 0) {
-    const { data: draftParticipants } = await supabase
+    const { data: draftParticipants } = await admin
       .from('draft_participants')
       .select('user_id')
       .in('competition_id', allDraftIds)
