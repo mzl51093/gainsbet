@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendPushToUser, sendPushToAll } from '@/lib/push'
+import { saveNotification, saveNotifications } from '@/lib/notifications-db'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -9,93 +10,57 @@ export async function POST(req: NextRequest) {
 
   const { event, payload } = await req.json()
 
-  // Get caller's profile
-  const { data: me } = await supabase
-    .from('profiles')
-    .select('display_name, username')
-    .eq('id', user.id)
-    .single()
-
+  const { data: me } = await supabase.from('profiles').select('display_name, username').eq('id', user.id).single()
   const name = me?.display_name?.split(' ')[0] || 'Someone'
 
-  // Get all other user IDs to potentially notify
   const { data: allProfiles } = await supabase.from('profiles').select('id')
   const everyoneElse = (allProfiles || []).map(p => p.id).filter(id => id !== user.id)
 
   switch (event) {
     case 'workout_logged': {
       const { points, workoutType } = payload
-      await sendPushToAll(everyoneElse, {
-        title: `${name} just logged a workout 💪`,
-        body: `+${points} pts for ${workoutType}. Get off the couch.`,
-        url: '/dashboard',
-      })
+      const notif = { type: event, title: `${name} just logged a workout 💪`, body: `+${points} pts for ${workoutType}. Get off the couch.`, url: '/dashboard' }
+      await Promise.all([sendPushToAll(everyoneElse, notif), saveNotifications(everyoneElse, notif)])
       break
     }
-
     case 'wager_proposed': {
-      const { wagerId, wagerTitle, participantIds } = payload
+      const { wagerTitle, participantIds } = payload
       const toNotify = (participantIds as string[]).filter(id => id !== user.id)
-      await sendPushToAll(toNotify, {
-        title: `${name} proposed a wager 🤝`,
-        body: `"${wagerTitle}" — your acceptance is required.`,
-        url: '/wagers',
-      })
+      const notif = { type: event, title: `${name} proposed a wager 🤝`, body: `"${wagerTitle}" — your acceptance is required.`, url: '/wagers' }
+      await Promise.all([sendPushToAll(toNotify, notif), saveNotifications(toNotify, notif)])
       break
     }
-
     case 'wager_accepted': {
-      const { wagerId, wagerTitle, proposerId, allAccepted } = payload
+      const { wagerTitle, proposerId, allAccepted, participantIds } = payload
       if (allAccepted) {
-        // Notify everyone in the wager the challenge is live
-        const { participantIds } = payload
         const toNotify = (participantIds as string[]).filter(id => id !== user.id)
-        await sendPushToAll(toNotify, {
-          title: 'Challenge is LIVE 🔥',
-          body: `"${wagerTitle}" — everyone accepted. Game on.`,
-          url: '/wagers',
-        })
+        const notif = { type: event, title: 'Challenge is LIVE 🔥', body: `"${wagerTitle}" — everyone accepted. Game on.`, url: '/wagers' }
+        await Promise.all([sendPushToAll(toNotify, notif), saveNotifications(toNotify, notif)])
       } else {
-        // Just notify the proposer that someone accepted
-        await sendPushToUser(proposerId, {
-          title: `${name} accepted your wager`,
-          body: `"${wagerTitle}" — waiting for others.`,
-          url: '/wagers',
-        })
+        const notif = { type: event, title: `${name} accepted your wager`, body: `"${wagerTitle}" — waiting for others.`, url: '/wagers' }
+        await Promise.all([sendPushToUser(proposerId, notif), saveNotification(proposerId, notif)])
       }
       break
     }
-
     case 'wager_resolved': {
       const { wagerTitle, winner, participantIds } = payload
       const toNotify = (participantIds as string[]).filter(id => id !== user.id)
       const winnerText = winner === 'competitors' ? 'Workers won 🏆' : 'Motivators won 💅'
-      await sendPushToAll(toNotify, {
-        title: `Wager resolved: ${winnerText}`,
-        body: `"${wagerTitle}" has been settled.`,
-        url: '/wagers',
-      })
+      const notif = { type: event, title: `Wager resolved: ${winnerText}`, body: `"${wagerTitle}" has been settled.`, url: '/wagers' }
+      await Promise.all([sendPushToAll(toNotify, notif), saveNotifications(toNotify, notif)])
       break
     }
-
     case 'double_down_offered': {
       const { wagerTitle, workerIds } = payload
-      await sendPushToAll(workerIds, {
-        title: `Double down offered 💰`,
-        body: `${name} wants to double down on "${wagerTitle}". Accept or decline.`,
-        url: '/wagers',
-      })
+      const notif = { type: event, title: `Double down offered 💰`, body: `${name} wants to double down on "${wagerTitle}". Accept or decline.`, url: '/wagers' }
+      await Promise.all([sendPushToAll(workerIds, notif), saveNotifications(workerIds, notif)])
       break
     }
-
     case 'comment_posted': {
       const { notifyUserIds, context } = payload
       const toNotify = (notifyUserIds as string[] || []).filter(id => id !== user.id)
-      await sendPushToAll(toNotify, {
-        title: `${name} left a comment`,
-        body: context || 'Trash talk incoming 🗑️',
-        url: '/dashboard',
-      })
+      const notif = { type: event, title: `${name} left a comment 💬`, body: context || 'Trash talk incoming 🗑️', url: '/dashboard' }
+      await Promise.all([sendPushToAll(toNotify, notif), saveNotifications(toNotify, notif)])
       break
     }
   }
