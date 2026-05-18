@@ -57,7 +57,7 @@ export default function BottomNav({ pendingWagerCount = 0 }: Props) {
   }, [pathname])
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-50 pb-safe">
+    <nav className="bottom-nav bg-gray-900 border-t border-gray-800 pb-safe">
       <div className="max-w-lg mx-auto flex">
         {navItems.map(item => {
           const active = pathname === item.href
