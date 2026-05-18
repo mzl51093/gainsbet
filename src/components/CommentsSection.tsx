@@ -33,9 +33,10 @@ interface Props {
   targetType: 'workout' | 'wager'
   currentUserId: string
   initialCount?: number
+  notifyUserIds?: string[]
 }
 
-export default function CommentsSection({ targetId, targetType, currentUserId, initialCount = 0 }: Props) {
+export default function CommentsSection({ targetId, targetType, currentUserId, initialCount = 0, notifyUserIds }: Props) {
   const [open, setOpen] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(false)
@@ -78,6 +79,16 @@ export default function CommentsSection({ targetId, targetType, currentUserId, i
     if (data) {
       setComments(prev => [...prev, data as Comment])
       setCount(c => c + 1)
+      if (notifyUserIds && notifyUserIds.length > 0) {
+        fetch('/api/push/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'comment_posted',
+            payload: { notifyUserIds, context: body.trim() },
+          }),
+        }).catch(() => null)
+      }
     }
     setText('')
     setSubmitting(false)

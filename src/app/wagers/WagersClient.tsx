@@ -461,6 +461,7 @@ function WagerCard({ wager, currentUserId, onResolve, onDelete, onAccept, onDoub
           targetId={wager.id}
           targetType="wager"
           currentUserId={currentUserId}
+          notifyUserIds={[...(wager.team_player_ids || []), ...(wager.watcher_ids || [])]}
         />
       </div>
 

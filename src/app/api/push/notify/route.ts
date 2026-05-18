@@ -89,14 +89,13 @@ export async function POST(req: NextRequest) {
     }
 
     case 'comment_posted': {
-      const { targetOwnerId, context } = payload
-      if (targetOwnerId && targetOwnerId !== user.id) {
-        await sendPushToUser(targetOwnerId, {
-          title: `${name} left a comment`,
-          body: context || 'Trash talk incoming 🗑️',
-          url: '/dashboard',
-        })
-      }
+      const { notifyUserIds, context } = payload
+      const toNotify = (notifyUserIds as string[] || []).filter(id => id !== user.id)
+      await sendPushToAll(toNotify, {
+        title: `${name} left a comment`,
+        body: context || 'Trash talk incoming 🗑️',
+        url: '/dashboard',
+      })
       break
     }
   }

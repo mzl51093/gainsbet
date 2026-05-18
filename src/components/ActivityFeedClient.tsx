@@ -177,6 +177,7 @@ export default function ActivityFeedClient({ initialWorkouts, currentUserId, act
                     targetType="workout"
                     currentUserId={currentUserId}
                     initialCount={(workout.workout_comments || []).length}
+                    notifyUserIds={[workout.user_id]}
                   />
                 </div>
               </>
