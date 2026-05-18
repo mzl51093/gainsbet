@@ -211,36 +211,35 @@ export default async function DashboardPage() {
     draftComps = dc || []
   }
 
-  // Activity feed — only people in competitions/drafts this user is in or following
+  // Activity feed: collect all user IDs connected to current user across ALL wagers + drafts
   const relevantUserIds = new Set<string>([user.id])
 
-  // From wager challenges (workers + motivators)
-  for (const challenge of challenges) {
-    for (const w of challenge.workers) relevantUserIds.add((w as any).profile.id)
-    for (const m of challenge.motivators) relevantUserIds.add((m as any).id)
+  // All wagers user is a participant in (any status — RLS returns only theirs)
+  const { data: allUserWagers } = await supabase
+    .from('wagers')
+    .select('team_player_ids, watcher_ids')
+  for (const w of (allUserWagers || [])) {
+    for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+      relevantUserIds.add(id)
+    }
   }
 
-  // From draft competitions (participated + followed) — fetch all participant IDs
+  // Followed wagers (active) — already have activeWagers
+  for (const w of (activeWagers || [])) {
+    if (followedWagerIds.has(w.id)) {
+      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+        relevantUserIds.add(id)
+      }
+    }
+  }
+
+  // All draft competitions user is in or following
   if (allDraftIds.length > 0) {
     const { data: draftParticipants } = await supabase
       .from('draft_participants')
       .select('user_id')
       .in('competition_id', allDraftIds)
     for (const p of (draftParticipants || [])) relevantUserIds.add(p.user_id)
-  }
-
-  // Also pull in all wager participant IDs directly from the raw wager data
-  // (covers cases where challenges[] mapping dropped someone due to missing profile)
-  for (const w of (activeWagers || [])) {
-    const inWager =
-      (w.team_player_ids || []).includes(user.id) ||
-      (w.watcher_ids || []).includes(user.id) ||
-      followedWagerIds.has(w.id)
-    if (inWager) {
-      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
-        relevantUserIds.add(id)
-      }
-    }
   }
 
   const { data: recentWorkouts } = await supabase
