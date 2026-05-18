@@ -267,7 +267,7 @@ export default async function DashboardPage() {
   // Session client — workouts are readable by all authenticated users (same as challengeWorkouts)
   const { data: recentWorkouts, error: feedError } = await supabase
     .from('workouts')
-    .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
+    .select('*, profiles!workouts_user_id_fkey(display_name, username), workout_reactions(*), workout_comments(id)')
     .in('user_id', [...feedUserIds])
     .order('logged_at', { ascending: false })
     .limit(20)

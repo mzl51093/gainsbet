@@ -52,7 +52,7 @@ export async function GET(
   if (comp.status === 'active' && comp.start_date) {
     const { data: ws } = await admin
       .from('workouts')
-      .select('*, profiles(display_name, username)')
+      .select('*, profiles!workouts_user_id_fkey(display_name, username)')
       .eq('draft_competition_id', id)
       .gte('logged_at', comp.start_date)
       .order('logged_at', { ascending: false })

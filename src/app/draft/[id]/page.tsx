@@ -59,7 +59,7 @@ export default async function DraftCompetitionPage({
   if (comp.status === 'active' || comp.status === 'completed') {
     const query = admin
       .from('workouts')
-      .select('*, profiles(display_name, username)')
+      .select('*, profiles!workouts_user_id_fkey(display_name, username)')
       .eq('draft_competition_id', id)
       .order('logged_at', { ascending: false })
 
@@ -76,7 +76,7 @@ export default async function DraftCompetitionPage({
   if (comp.status === 'active') {
     const { data: pw } = await admin
       .from('workouts')
-      .select('*, profiles(display_name, username)')
+      .select('*, profiles!workouts_user_id_fkey(display_name, username)')
       .eq('draft_competition_id', id)
       .eq('validation_status', 'pending')
       .order('logged_at', { ascending: false })
