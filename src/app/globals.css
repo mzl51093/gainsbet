@@ -20,3 +20,8 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* iOS safe area for bottom nav */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
