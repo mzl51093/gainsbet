@@ -211,11 +211,22 @@ export default async function DashboardPage() {
     draftComps = dc || []
   }
 
-  // Activity feed — only show people in challenges this user is connected to
+  // Activity feed — show people from wager challenges + draft competitions user is connected to
   const relevantUserIds = new Set<string>([user.id])
+
+  // From wager challenges
   for (const challenge of challenges) {
     for (const w of challenge.workers) relevantUserIds.add((w as any).profile.id)
     for (const m of challenge.motivators) relevantUserIds.add((m as any).id)
+  }
+
+  // From draft competitions (participated + followed)
+  if (allDraftIds.length > 0) {
+    const { data: draftParticipants } = await supabase
+      .from('draft_participants')
+      .select('user_id')
+      .in('competition_id', allDraftIds)
+    for (const p of (draftParticipants || [])) relevantUserIds.add(p.user_id)
   }
 
   const { data: recentWorkouts } = await supabase
