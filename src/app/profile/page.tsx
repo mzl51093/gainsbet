@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import ProfileClient from './ProfileClient'
 import { WORKOUT_TYPES, getWeekStart, getWeekEnd, WEEKLY_GOAL } from '@/lib/points'
 
@@ -56,7 +55,6 @@ export default async function ProfilePage() {
         />
       </div>
 
-      <BottomNav />
     </div>
   )
 }

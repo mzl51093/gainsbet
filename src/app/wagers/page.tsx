@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import WagersClient from './WagersClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
 import { getWeekStart } from '@/lib/points'
@@ -130,7 +129,6 @@ export default async function WagersPage() {
         />
       </div>
 
-      <BottomNav />
     </div>
   )
 }

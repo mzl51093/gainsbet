@@ -4,7 +4,6 @@ import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { WORKOUT_TYPES, calculatePoints, getPtsPerHour, getEarlyBirdMultiplier } from '@/lib/points'
-import BottomNav from '@/components/BottomNav'
 import type { WorkoutType } from '@/lib/points'
 
 const PROOF_TYPES = [
@@ -612,7 +611,6 @@ function LogWorkoutInner() {
         )}
       </div>
 
-      <BottomNav />
     </div>
   )
 

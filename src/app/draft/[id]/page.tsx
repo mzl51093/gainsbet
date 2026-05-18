@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import DraftCompetitionClient from './DraftCompetitionClient'
-import BottomNav from '@/components/BottomNav'
 
 export const revalidate = 0
 
@@ -135,7 +134,6 @@ export default async function DraftCompetitionPage({
         allProfiles={allProfiles || []}
         invitedIds={(existingInvites || []).map(r => r.invited_user_id)}
       />
-      <BottomNav />
     </div>
   )
 }

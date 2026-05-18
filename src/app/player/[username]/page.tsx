@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import Link from 'next/link'
 import PlayerFollowButton from './PlayerFollowButton'
 import { WORKOUT_TYPES } from '@/lib/points'
@@ -490,7 +489,6 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
 
       </div>
 
-      <BottomNav />
     </div>
   )
 }

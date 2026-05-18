@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import DiscoverClient from './DiscoverClient'
 
 export const revalidate = 0
@@ -109,7 +108,6 @@ export default async function DiscoverPage() {
       <div className="max-w-lg mx-auto px-4 pt-5">
         <DiscoverClient wagerCards={wagerCards} draftCards={draftCards} people={people} currentUserId={user.id} />
       </div>
-      <BottomNav />
     </div>
   )
 }

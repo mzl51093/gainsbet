@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import BottomNav from '@/components/BottomNav'
 
 export const revalidate = 0
 
@@ -131,7 +130,6 @@ export default async function DraftListPage() {
         </div>
       </div>
 
-      <BottomNav />
     </div>
   )
 }

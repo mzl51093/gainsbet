@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   background: #030712;
   color: #f9fafb;
@@ -26,16 +30,10 @@ html {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Force bottom nav onto its own GPU layer so position:fixed doesn't scroll on iOS */
+/*
+  Bottom nav sits at the bottom of the body flex column — no position:fixed needed.
+  This is the only reliable way to anchor it on iOS Safari.
+*/
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  -webkit-transform: translate3d(0, 0, 0);
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  flex-shrink: 0;
 }

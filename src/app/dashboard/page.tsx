@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
@@ -405,7 +404,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <BottomNav pendingWagerCount={myPendingWagers.length} />
     </div>
   )
 }

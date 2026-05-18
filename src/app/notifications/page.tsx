@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import NotificationsClient from './NotificationsClient'
 
 export const revalidate = 0
@@ -27,7 +26,6 @@ export default async function NotificationsPage() {
       <div className="max-w-lg mx-auto px-4 pt-4">
         <NotificationsClient initialNotifications={notifications || []} currentUserId={user.id} />
       </div>
-      <BottomNav />
     </div>
   )
 }
