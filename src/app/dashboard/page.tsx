@@ -218,13 +218,24 @@ export default async function DashboardPage() {
   // Active wager participants (derived from activeCompetitorIds, same logic proven to work for badges)
   for (const id of activeCompetitorIds) feedUserIds.add(id)
 
-  // Completed wager participants — session client works the same way activeWagers does
+  // Completed/resolved wager participants — session client, same RLS as activeWagers
   const { data: completedWagers } = await supabase
     .from('wagers')
     .select('team_player_ids, watcher_ids')
-    .eq('status', 'completed')
+    .in('status', ['resolved', 'completed'])
   for (const w of (completedWagers || [])) {
     if ((w.team_player_ids || []).includes(user.id) || (w.watcher_ids || []).includes(user.id)) {
+      for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
+        feedUserIds.add(id)
+      }
+    }
+  }
+
+  // Also add user.id to feedUserIds if they are proposed_by on any active wager
+  // (proposed_by may not be in team_player_ids)
+  for (const w of (activeWagers || [])) {
+    if (w.proposed_by === user.id) {
+      feedUserIds.add(user.id)
       for (const id of [...(w.team_player_ids || []), ...(w.watcher_ids || [])]) {
         feedUserIds.add(id)
       }
@@ -253,13 +264,14 @@ export default async function DashboardPage() {
     for (const p of (draftParticipants || [])) feedUserIds.add(p.user_id)
   }
 
-  // Use admin client for workouts to bypass any RLS complexity on joined tables
-  const { data: recentWorkouts } = await admin
+  // Session client — workouts are readable by all authenticated users (same as challengeWorkouts)
+  const { data: recentWorkouts, error: feedError } = await supabase
     .from('workouts')
     .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
     .in('user_id', [...feedUserIds])
     .order('logged_at', { ascending: false })
     .limit(20)
+  if (feedError) console.error('feed query error:', feedError)
 
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
