@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatRelativeTime } from '@/lib/utils'
+import { PushToggle } from '@/components/PushNotificationPrompt'
 import type { Profile, Workout } from '@/lib/types'
 
 interface Props {
@@ -25,6 +26,26 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
   const [displayName, setDisplayName] = useState(profile.display_name)
   const [saving, setSaving] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [testingPush, setTestingPush] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
+
+  async function handleTestNotification() {
+    setTestingPush(true)
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const json = await res.json()
+      if (res.ok) {
+        setTestResult('Sent! Check for a notification.')
+      } else {
+        setTestResult(`Failed: ${json.error}`)
+      }
+    } catch {
+      setTestResult('Network error — try again.')
+    } finally {
+      setTestingPush(false)
+    }
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -162,6 +183,24 @@ export default function ProfileClient({ profile, stats, recentWorkouts, workoutT
           </div>
         </div>
       )}
+
+      {/* Notifications */}
+      <div className="bg-gray-900 rounded-2xl p-5 space-y-3">
+        <h3 className="text-white font-semibold">Notifications</h3>
+        <PushToggle />
+        <button
+          onClick={handleTestNotification}
+          disabled={testingPush}
+          className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-xl text-sm transition-colors disabled:opacity-50"
+        >
+          {testingPush ? 'Sending...' : 'Send me a test notification'}
+        </button>
+        {testResult && (
+          <p className={`text-xs text-center ${testResult.startsWith('Sent') ? 'text-green-400' : 'text-red-400'}`}>
+            {testResult}
+          </p>
+        )}
+      </div>
 
       {/* Sign out */}
       <button
