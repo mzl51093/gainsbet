@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: '🏠' },
   { href: '/log-workout', label: 'Log', icon: '➕' },
+  { href: '/discover', label: 'Explore', icon: '🔍' },
   { href: '/wagers', label: 'Wagers', icon: '💰' },
   { href: '/notifications', label: 'Alerts', icon: '🔔' },
   { href: '/profile', label: 'Profile', icon: '👤' },
@@ -67,7 +68,7 @@ export default function BottomNav({ pendingWagerCount = 0 }: Props) {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors relative',
+                'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative',
                 active ? 'text-green-400' : 'text-gray-500'
               )}
             >

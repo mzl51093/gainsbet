@@ -52,6 +52,14 @@ export default async function DashboardPage() {
     !w.wager_acceptances?.some((a: any) => a.user_id === user.id)
   )
 
+  // Followed challenge IDs
+  const [{ data: wagerFollowRows }, { data: draftFollowRows }] = await Promise.all([
+    supabase.from('wager_followers').select('wager_id').eq('user_id', user.id),
+    supabase.from('draft_followers').select('competition_id').eq('user_id', user.id),
+  ])
+  const followedWagerIds = new Set((wagerFollowRows || []).map((r: any) => r.wager_id))
+  const followedDraftIds = new Set((draftFollowRows || []).map((r: any) => r.competition_id))
+
   // Build challenge data — use Eastern date to avoid UTC-day mismatch
   const todayEasternStr = getTodayEastern()
   const [ty, tm, td] = todayEasternStr.split('-').map(Number)
@@ -75,7 +83,8 @@ export default async function DashboardPage() {
   const challenges: ChallengeData[] = (activeWagers || [])
     .filter((w: any) =>
       (w.team_player_ids || []).includes(user.id) ||
-      (w.watcher_ids || []).includes(user.id)
+      (w.watcher_ids || []).includes(user.id) ||
+      followedWagerIds.has(w.id)
     )
     .map((w: any) => {
       const start = new Date(w.week_start)
@@ -181,32 +190,40 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(10)
 
-  // Draft competitions for current user
+  // Draft competitions for current user (participated + followed)
   const { data: myDraftParticipations } = await supabase
     .from('draft_participants')
     .select('competition_id')
     .eq('user_id', user.id)
 
-  const draftCompIds = myDraftParticipations?.map((p: any) => p.competition_id) || []
+  const participatedDraftIds = myDraftParticipations?.map((p: any) => p.competition_id) || []
+  const allDraftIds = [...new Set([...participatedDraftIds, ...followedDraftIds])]
 
   let draftComps: any[] = []
-  if (draftCompIds.length > 0) {
+  if (allDraftIds.length > 0) {
     const { data: dc } = await supabase
       .from('draft_competitions')
       .select('id, name, status, point_goal')
-      .in('id', draftCompIds)
+      .in('id', allDraftIds)
       .neq('status', 'completed')
       .order('created_at', { ascending: false })
-      .limit(3)
+      .limit(5)
     draftComps = dc || []
   }
 
-  // Recent activity feed
+  // Activity feed — only show people in challenges this user is connected to
+  const relevantUserIds = new Set<string>([user.id])
+  for (const challenge of challenges) {
+    for (const w of challenge.workers) relevantUserIds.add((w as any).profile.id)
+    for (const m of challenge.motivators) relevantUserIds.add((m as any).id)
+  }
+
   const { data: recentWorkouts } = await supabase
     .from('workouts')
     .select('*, profiles(display_name, username), workout_reactions(*), workout_comments(id)')
+    .in('user_id', [...relevantUserIds])
     .order('logged_at', { ascending: false })
-    .limit(10)
+    .limit(15)
 
   return (
     <div className="min-h-screen bg-gray-950 pb-24">
@@ -294,15 +311,17 @@ export default async function DashboardPage() {
             </Link>
           </div>
         )}
-        {(!draftComps || draftComps.length === 0) && (
-          <div className="bg-gray-900 rounded-2xl p-4">
-            <h2 className="text-white font-semibold mb-1">🏆 Team Draft</h2>
-            <p className="text-gray-500 text-sm mb-3">Draft teams, race to the goal. Everyone must contribute.</p>
-            <Link href="/draft/new" className="block w-full text-center bg-green-500 hover:bg-green-400 text-black font-bold py-2 rounded-xl text-sm transition-colors">
-              Create Draft Competition
-            </Link>
+        {/* Explore CTA */}
+        <Link href="/discover" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔍</span>
+            <div className="flex-1">
+              <p className="text-white font-semibold text-sm">Explore Challenges</p>
+              <p className="text-gray-500 text-xs mt-0.5">Follow challenges to see them in your feed</p>
+            </div>
+            <span className="text-gray-600 text-sm">→</span>
           </div>
-        )}
+        </Link>
 
         {/* Poke section */}
         <PokeSection
