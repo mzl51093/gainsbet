@@ -372,9 +372,9 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
   return (
     <div className={`rounded-2xl border ${statusBorder} ${isHidden ? 'bg-gray-900/40 opacity-50' : 'bg-gray-900'} overflow-hidden transition-opacity`}>
       {editMode && <EditToolbar label={comp.name} isFirst={isFirst} isLast={isLast} isHidden={isHidden} onMoveUp={onMoveUp} onMoveDown={onMoveDown} onToggleHide={onToggleHide} />}
-      <button onClick={onToggleCollapse} className="w-full text-left px-4 pt-4 pb-3 border-b border-gray-800">
+      <div className="px-4 pt-4 pb-3 border-b border-gray-800">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <Link href={`/draft/${comp.id}`} className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-base">⚔️</span>
               <h3 className="text-white font-bold text-base">{comp.name}</h3>
@@ -391,10 +391,12 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
                 {!comp.endDate && ` · started ${comp.startDate}`}
               </p>
             )}
-          </div>
+          </Link>
           <div className="flex items-center gap-2 shrink-0">
             {comp.isParticipant && <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusBadge.cls}`}>{statusBadge.label}</span>}
-            <span className="text-gray-600 text-sm">{collapsed ? '›' : '⌄'}</span>
+            <button onClick={onToggleCollapse} className="w-7 h-7 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-colors text-sm rounded-lg hover:bg-gray-800">
+              {collapsed ? '›' : '⌄'}
+            </button>
           </div>
         </div>
         {!collapsed && comp.endTimestamp && (
@@ -404,7 +406,7 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
             <span className="text-gray-600 text-xs">remaining</span>
           </div>
         )}
-      </button>
+      </div>
       {!collapsed && (
         <>
           {comp.isParticipant && myTeamPlayers.length > 0 && (
