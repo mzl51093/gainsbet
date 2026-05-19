@@ -221,50 +221,70 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
             return (
               <div
                 key={challenge.id}
-                className="bg-gray-900 border border-yellow-600/40 rounded-2xl p-4 space-y-3"
+                className="bg-gray-900 border border-yellow-600/40 rounded-2xl overflow-hidden"
               >
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between px-4 pt-4 pb-2">
                   <p className="text-yellow-400 font-semibold text-sm">
                     ⏱️ Challenge from {name}!
                   </p>
                   <ChallengeCountdown expiresAt={challenge.expires_at} />
                 </div>
 
-                {/* Body */}
-                <p className="text-gray-300 text-sm">
-                  {challenge.reps} {challenge.exercise} for {challenge.points} pt{ptLabel} — video required
-                </p>
+                {/* Exercise */}
+                <div className="px-4 pb-3">
+                  <p className="text-white font-bold text-lg">
+                    {challenge.reps} {challenge.exercise}
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Complete for <span className="text-green-400 font-semibold">{challenge.points} pt{ptLabel}</span>
+                  </p>
+                </div>
 
-                {/* Record & Complete button */}
-                <button
-                  disabled={expired || uploading}
-                  onClick={() => {
-                    if (!expired && !uploading) {
-                      fileRefs.current[challenge.id]?.click()
-                    }
-                  }}
-                  className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-colors ${
-                    expired
-                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                      : uploading
-                      ? 'bg-green-700 text-green-200 cursor-wait'
-                      : 'bg-green-500 hover:bg-green-400 text-black'
-                  }`}
-                >
-                  {uploading ? 'Uploading…' : expired ? 'Expired' : '🎥 Record & Complete'}
-                </button>
+                {/* Video requirement callout */}
+                <div className="mx-4 mb-3 bg-amber-900/20 border border-amber-600/30 rounded-xl px-3 py-2.5">
+                  <p className="text-amber-400 text-xs font-semibold mb-1">📹 Video proof required</p>
+                  <ol className="text-gray-400 text-xs space-y-0.5 list-none">
+                    <li>1. Do the exercise right now</li>
+                    <li>2. Record yourself doing it</li>
+                    <li>3. Upload the video below to claim your points</li>
+                  </ol>
+                </div>
 
-                {/* Hidden file input */}
+                {/* Upload button */}
+                <div className="px-4 pb-4">
+                  <button
+                    disabled={expired || uploading}
+                    onClick={() => {
+                      if (!expired && !uploading) {
+                        fileRefs.current[challenge.id]?.click()
+                      }
+                    }}
+                    className={`w-full py-3 rounded-xl font-bold text-sm transition-colors ${
+                      expired
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : uploading
+                        ? 'bg-green-700 text-green-200 cursor-wait'
+                        : 'bg-green-500 hover:bg-green-400 text-black'
+                    }`}
+                  >
+                    {uploading ? '⏳ Uploading video…' : expired ? 'Expired' : '🎥 Upload Video & Claim Points'}
+                  </button>
+                  {!expired && !uploading && (
+                    <p className="text-gray-600 text-xs text-center mt-1.5">No video = no points. Keep it short (5–15 sec).</p>
+                  )}
+                </div>
+
+                {/* Hidden file input — video only, opens camera on mobile */}
                 <input
                   type="file"
-                  accept="video/*,image/*"
+                  accept="video/*"
+                  capture="environment"
                   className="hidden"
                   ref={el => { fileRefs.current[challenge.id] = el }}
                   onChange={e => {
                     const file = e.target.files?.[0]
                     if (file) handleFileSelect(challenge, file)
-                    // Reset input so same file can be re-selected
                     e.target.value = ''
                   }}
                 />
@@ -419,16 +439,19 @@ export default function PokeSection({ currentUserId, otherUsers, initialActiveCh
               </div>
             </div>
 
-            {/* Note */}
-            {modalUser?.role === 'partner' ? (
-              <p className="text-amber-400 text-xs text-center bg-amber-900/20 rounded-lg px-3 py-2">
-                ⚠️ If {modalUser.display_name.split(' ')[0]} completes this, you lose {selectedPoints} pt{selectedPoints > 1 ? 's' : ''} from your score!
-              </p>
-            ) : (
-              <p className="text-gray-500 text-xs text-center">
-                They earn {selectedPoints} pt{selectedPoints > 1 ? 's' : ''} if they complete with video proof
-              </p>
-            )}
+            {/* Video proof note */}
+            <div className="bg-gray-800 rounded-xl px-3 py-2.5 space-y-1">
+              <p className="text-amber-400 text-xs font-semibold">📹 Video proof enforced</p>
+              {modalUser?.role === 'partner' ? (
+                <p className="text-gray-400 text-xs">
+                  If {modalUser.display_name.split(' ')[0]} uploads a video completing this, you lose <span className="text-red-400 font-semibold">{selectedPoints} pt{selectedPoints > 1 ? 's' : ''}</span> from your score.
+                </p>
+              ) : (
+                <p className="text-gray-400 text-xs">
+                  They must upload a video of themselves doing it. No video = no points. You'll get notified when they complete it.
+                </p>
+              )}
+            </div>
 
             {/* Send button */}
             <button
