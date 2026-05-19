@@ -5,6 +5,7 @@ import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
 import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
+import LiveDraftCompetitions, { type DraftCompetitionData, type DraftParticipantProgress } from '@/components/LiveDraftCompetitions'
 import PokeSection from '@/components/PokeSection'
 import PokeTutorial from '@/components/PokeTutorial'
 import ResolutionAlert from '@/components/ResolutionAlert'
@@ -296,6 +297,88 @@ export default async function DashboardPage() {
     }
   }
 
+  // Full scorecard data for active draft competitions where user is a participant
+  const activeParticipatedDraftIds = draftComps
+    .filter((c: any) => c.status === 'active' && participatedDraftIds.includes(c.id))
+    .map((c: any) => c.id)
+
+  let draftChallenges: DraftCompetitionData[] = []
+
+  if (activeParticipatedDraftIds.length > 0) {
+    const [{ data: allDraftParticipants }, { data: fullDraftComps }] = await Promise.all([
+      admin.from('draft_participants').select('*').in('competition_id', activeParticipatedDraftIds),
+      admin.from('draft_competitions').select('*').in('id', activeParticipatedDraftIds),
+    ])
+
+    const allDraftPlayerIds = [...new Set((allDraftParticipants || []).map((p: any) => p.user_id))] as string[]
+
+    const earliestDraftStart = (fullDraftComps || []).reduce(
+      (min: string, d: any) => (d.start_date && d.start_date < min ? d.start_date : min),
+      todayEasternStr
+    )
+
+    const { data: draftWorkouts } = allDraftPlayerIds.length > 0
+      ? await supabase
+          .from('workouts')
+          .select('user_id, points, logged_at')
+          .in('user_id', allDraftPlayerIds)
+          .gte('logged_at', earliestDraftStart)
+      : { data: [] }
+
+    for (const d of fullDraftComps || []) {
+      const compParticipants = (allDraftParticipants || []).filter((p: any) => p.competition_id === d.id)
+      const start = new Date(d.start_date)
+      const endEasternISO = d.end_date ? getEndOfDayEasternISO(d.end_date) : null
+      const endMidnight = endEasternISO ? new Date(endEasternISO) : null
+      const daysTotal = d.end_date
+        ? Math.round((new Date(d.end_date).getTime() - start.getTime()) / 86400000) + 1 : 30
+      const daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1)
+      const daysLeft: number | null = d.end_date ? daysLeftEastern(d.end_date) : null
+
+      const participantPts: Record<string, number> = {}
+      for (const w of draftWorkouts || []) {
+        const loggedAt = new Date(w.logged_at)
+        const inWindow = loggedAt >= start && (!endMidnight || loggedAt <= endMidnight)
+        if (inWindow && compParticipants.some((p: any) => p.user_id === w.user_id)) {
+          participantPts[w.user_id] = (participantPts[w.user_id] || 0) + w.points
+        }
+      }
+
+      const buildParticipant = (p: any): DraftParticipantProgress => ({
+        profile: profileMap[p.user_id],
+        points: participantPts[p.user_id] || 0,
+        isMe: p.user_id === user.id,
+      })
+
+      const teamA = compParticipants.filter((p: any) => p.team === 'a' && profileMap[p.user_id]).map(buildParticipant)
+      const teamB = compParticipants.filter((p: any) => p.team === 'b' && profileMap[p.user_id]).map(buildParticipant)
+      const myParticipation = compParticipants.find((p: any) => p.user_id === user.id)
+
+      draftChallenges.push({
+        id: d.id,
+        name: d.name,
+        pointGoal: d.point_goal,
+        minContributionPct: d.min_contribution_pct,
+        wagerDescription: d.wager_description,
+        startDate: d.start_date,
+        endDate: d.end_date,
+        endTimestamp: endEasternISO ? new Date(endEasternISO).getTime() : null,
+        daysLeft,
+        daysTotal,
+        daysElapsed,
+        captainAId: d.captain_a_id,
+        captainBId: d.captain_b_id,
+        teamA,
+        teamB,
+        myTeam: myParticipation?.team ?? null,
+        isParticipant: !!myParticipation,
+      })
+    }
+  }
+
+  // Filter action cards to exclude active competitions — they show as full scorecards above
+  const nonActiveDraftActions = draftActions.filter(d => d.status !== 'active')
+
   // Build feed user IDs from data already loaded — avoids unreliable admin .contains() on array columns
   const feedUserIds = new Set<string>([user.id])
 
@@ -420,14 +503,17 @@ export default async function DashboardPage() {
         {/* Live competitions — hero section */}
         <LiveChallenges challenges={challenges} currentUserId={user.id} />
 
-        {/* Team Draft section */}
-        {draftActions.length > 0 ? (
+        {/* Active draft competitions — full scorecard */}
+        <LiveDraftCompetitions draftChallenges={draftChallenges} />
+
+        {/* Non-active draft competitions (recruiting / voting / drafting / configuring) */}
+        {nonActiveDraftActions.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-white font-semibold">🏆 Team Drafts</h2>
               <Link href="/draft" className="text-green-400 text-xs">View all →</Link>
             </div>
-            {draftActions.map((d) => (
+            {nonActiveDraftActions.map((d) => (
               <Link key={d.id} href={`/draft/${d.id}`}>
                 <div className={`rounded-2xl p-4 flex items-center gap-3 ${
                   d.urgent
@@ -454,17 +540,6 @@ export default async function DashboardPage() {
               + New draft competition
             </Link>
           </div>
-        ) : (
-          <Link href="/draft" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🏆</span>
-              <div className="flex-1">
-                <p className="text-white font-semibold text-sm">Team Drafts</p>
-                <p className="text-gray-500 text-xs mt-0.5">Create or join a team draft competition</p>
-              </div>
-              <span className="text-gray-600 text-sm">→</span>
-            </div>
-          </Link>
         )}
         {/* Explore CTA */}
         <Link href="/discover" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
