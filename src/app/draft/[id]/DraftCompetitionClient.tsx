@@ -958,9 +958,16 @@ function ActiveCompetition({
   const teamBParticipants = participants.filter((p) => p.team === 'b')
 
   const approvedWorkouts = workouts.filter((w) => w.validation_status === 'approved')
+  const pendingAll = workouts.filter((w) => w.validation_status === 'pending')
 
   function getMemberPoints(userId: string): number {
     return approvedWorkouts
+      .filter((w) => w.user_id === userId)
+      .reduce((sum, w) => sum + w.points, 0)
+  }
+
+  function getMemberPending(userId: string): number {
+    return pendingAll
       .filter((w) => w.user_id === userId)
       .reduce((sum, w) => sum + w.points, 0)
   }
@@ -1079,6 +1086,7 @@ function ActiveCompetition({
         <div className="space-y-1.5">
           {teamParticipants.map((p) => {
             const pts = getMemberPoints(p.user_id)
+            const pendingPts = getMemberPending(p.user_id)
             const pct = Math.min(100, (pts / goal) * 100)
             const needed = Math.max(0, Math.ceil(goal * (minPct / 100)) - pts)
             const belowMin = pct < minPct
@@ -1086,11 +1094,7 @@ function ActiveCompetition({
             return (
               <div key={p.user_id} className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span
-                    className={`text-xs ${
-                      belowMin ? 'text-red-400' : 'text-gray-300'
-                    }`}
-                  >
+                  <span className={`text-xs ${belowMin ? 'text-red-400' : 'text-gray-300'}`}>
                     {p.profiles.display_name.split(' ')[0]}
                     {p.user_id === competition.captain_a_id ||
                     p.user_id === competition.captain_b_id
@@ -1098,9 +1102,16 @@ function ActiveCompetition({
                       : ''}
                     {p.user_id === currentUserId ? ' · you' : ''}
                   </span>
-                  <span className={`text-xs font-semibold ${belowMin ? 'text-red-400' : 'text-gray-400'}`}>
-                    {pts}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {pendingPts > 0 && (
+                      <span className="text-xs text-yellow-600" title="Pending validation">
+                        +{pendingPts} ⏳
+                      </span>
+                    )}
+                    <span className={`text-xs font-semibold ${belowMin ? 'text-red-400' : 'text-gray-400'}`}>
+                      {pts}
+                    </span>
+                  </div>
                 </div>
                 {belowMin && needed > 0 && (
                   <p className="text-red-600 text-xs">Needs {needed} more pts</p>
@@ -1113,12 +1124,15 @@ function ActiveCompetition({
     )
   }
 
-  // Pending workouts for my team
+  // Pending workouts for my team (teammates only — can't validate your own)
   const myTeamPending = pendingWorkouts.filter((w) => {
-    if (w.user_id === currentUserId) return false // can't validate own
+    if (w.user_id === currentUserId) return false
     const loggerParticipant = participants.find((p) => p.user_id === w.user_id)
     return loggerParticipant?.team === myTeam
   })
+
+  // My own workouts awaiting validation
+  const myOwnPending = pendingWorkouts.filter((w) => w.user_id === currentUserId)
 
   return (
     <div className="space-y-4">
@@ -1222,7 +1236,32 @@ function ActiveCompetition({
         )}
       </div>
 
-      {/* Validation queue */}
+      {/* My own workouts awaiting teammate validation */}
+      {myOwnPending.length > 0 && (
+        <div className="bg-yellow-900/15 border border-yellow-700/30 rounded-2xl p-4">
+          <h3 className="text-yellow-400 font-semibold text-sm mb-1">
+            ⏳ Awaiting Validation ({myOwnPending.length})
+          </h3>
+          <p className="text-gray-500 text-xs mb-3">
+            Your workouts below are pending — a teammate needs to approve them before they count.
+          </p>
+          <div className="space-y-2">
+            {myOwnPending.map((w) => (
+              <div key={w.id} className="bg-gray-800/60 rounded-xl px-3 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-gray-300 text-xs font-medium">
+                    {w.workout_type} · {w.duration_minutes} min
+                  </p>
+                  {w.notes && <p className="text-gray-600 text-xs italic">{w.notes}</p>}
+                </div>
+                <span className="text-yellow-500 text-sm font-bold">+{w.points} pts</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Teammate validation queue */}
       {myTeamPending.length > 0 && (
         <div className="bg-gray-900 rounded-2xl p-4">
           <h3 className="text-white font-semibold text-sm mb-3">
