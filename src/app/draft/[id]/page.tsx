@@ -55,31 +55,34 @@ export default async function DraftCompetitionPage({
   }
 
   let workouts: any[] = []
-  if (comp.status === 'active' || comp.status === 'completed') {
-    const query = admin
-      .from('workouts')
-      .select('*, profiles!workouts_user_id_fkey(display_name, username)')
-      .eq('draft_competition_id', id)
-      .order('logged_at', { ascending: false })
-
-    if (comp.start_date) {
-      query.gte('logged_at', comp.start_date)
-    }
-
-    const { data: ws } = await query
-    workouts = ws || []
-  }
-
-  // For pending validation — fetch workouts needing validation in active competition
   let pendingWorkouts: any[] = []
-  if (comp.status === 'active') {
-    const { data: pw } = await admin
-      .from('workouts')
-      .select('*, profiles!workouts_user_id_fkey(display_name, username)')
-      .eq('draft_competition_id', id)
-      .eq('validation_status', 'pending')
-      .order('logged_at', { ascending: false })
-    pendingWorkouts = pw || []
+
+  if (comp.status === 'active' || comp.status === 'completed') {
+    const participantIds = (participants || []).map((p: any) => p.user_id)
+
+    if (participantIds.length > 0) {
+      // Query by participant user IDs + date window so workouts logged from
+      // any entry point (not just the competition-specific button) are counted
+      let q = admin
+        .from('workouts')
+        .select('*, profiles!workouts_user_id_fkey(display_name, username)')
+        .in('user_id', participantIds)
+        .order('logged_at', { ascending: false })
+
+      if (comp.start_date) {
+        q = q.gte('logged_at', comp.start_date)
+      }
+      if (comp.end_date) {
+        q = q.lte('logged_at', comp.end_date + 'T23:59:59')
+      }
+
+      const { data: ws } = await q
+      workouts = ws || []
+
+      if (comp.status === 'active') {
+        pendingWorkouts = workouts.filter((w: any) => w.validation_status === 'pending')
+      }
+    }
   }
 
   // Chat: determine user's team, then fetch initial messages for each channel
