@@ -920,6 +920,39 @@ function ActiveCompetition({
   onRefresh: () => void
 }) {
   const [validating, setValidating] = useState<string | null>(null)
+  const [editingSettings, setEditingSettings] = useState(false)
+  const [editGoal, setEditGoal] = useState(competition.point_goal)
+  const [editEndDate, setEditEndDate] = useState(competition.end_date?.split('T')[0] ?? '')
+  const [editWager, setEditWager] = useState(competition.wager_description ?? '')
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
+
+  const isCaptain =
+    currentUserId === competition.captain_a_id || currentUserId === competition.captain_b_id
+
+  async function saveSettings() {
+    setSavingSettings(true)
+    setSettingsError('')
+    try {
+      const res = await fetch(`/api/draft/${competitionId}/update-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pointGoal: editGoal,
+          endDate: editEndDate || undefined,
+          wagerDescription: editWager || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSettingsError(data.error || 'Failed to save'); return }
+      setEditingSettings(false)
+      onRefresh()
+    } catch {
+      setSettingsError('Something went wrong.')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
 
   const teamAParticipants = participants.filter((p) => p.team === 'a')
   const teamBParticipants = participants.filter((p) => p.team === 'b')
@@ -1107,13 +1140,87 @@ function ActiveCompetition({
         />
       </div>
 
-      {/* Stakes */}
-      {competition.wager_description && (
-        <div className="bg-gray-900 rounded-2xl p-4">
-          <p className="text-gray-500 text-xs mb-0.5">Stakes</p>
-          <p className="text-white text-sm">{competition.wager_description}</p>
-        </div>
-      )}
+      {/* Stakes + captain edit */}
+      <div className="bg-gray-900 rounded-2xl p-4">
+        {editingSettings ? (
+          <div className="space-y-3">
+            <h3 className="text-white font-semibold text-sm">Edit Competition Settings</h3>
+            <label className="block">
+              <span className="text-gray-400 text-xs block mb-1">Point Goal</span>
+              <input
+                type="number"
+                min={1}
+                value={editGoal}
+                onChange={e => setEditGoal(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-gray-400 text-xs block mb-1">End Date <span className="text-gray-600">(optional)</span></span>
+              <input
+                type="date"
+                value={editEndDate}
+                onChange={e => setEditEndDate(e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-gray-400 text-xs block mb-1">Stakes <span className="text-gray-600">(optional)</span></span>
+              <input
+                type="text"
+                value={editWager}
+                onChange={e => setEditWager(e.target.value)}
+                placeholder="e.g. $5 venmo"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+              />
+            </label>
+            {settingsError && <p className="text-red-400 text-xs">{settingsError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={saveSettings}
+                disabled={savingSettings}
+                className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-bold py-2 rounded-xl text-sm transition-colors"
+              >
+                {savingSettings ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => { setEditingSettings(false); setSettingsError('') }}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between">
+            <div>
+              {competition.wager_description && (
+                <>
+                  <p className="text-gray-500 text-xs mb-0.5">Stakes</p>
+                  <p className="text-white text-sm">{competition.wager_description}</p>
+                </>
+              )}
+              {!competition.wager_description && (
+                <p className="text-gray-600 text-xs">No stakes set</p>
+              )}
+            </div>
+            {isCaptain && (
+              <button
+                onClick={() => {
+                  setEditGoal(competition.point_goal)
+                  setEditEndDate(competition.end_date?.split('T')[0] ?? '')
+                  setEditWager(competition.wager_description ?? '')
+                  setEditingSettings(true)
+                }}
+                className="text-gray-600 hover:text-gray-300 text-xs transition-colors ml-3 flex-shrink-0"
+                title="Edit settings"
+              >
+                ✏️ Edit
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Validation queue */}
       {myTeamPending.length > 0 && (
