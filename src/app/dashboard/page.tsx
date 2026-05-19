@@ -4,8 +4,7 @@ import { redirect } from 'next/navigation'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 import ActivityFeedClient from '@/components/ActivityFeedClient'
-import LiveChallenges, { type ChallengeData } from '@/components/LiveChallenges'
-import LiveDraftCompetitions, { type DraftCompetitionData, type DraftParticipantProgress } from '@/components/LiveDraftCompetitions'
+import LiveAllCompetitions, { type ChallengeData, type DraftCompetitionData, type DraftParticipantProgress } from '@/components/LiveAllCompetitions'
 import PokeSection from '@/components/PokeSection'
 import PokeTutorial from '@/components/PokeTutorial'
 import ResolutionAlert from '@/components/ResolutionAlert'
@@ -500,11 +499,8 @@ export default async function DashboardPage() {
           </Link>
         )}
 
-        {/* Live competitions — hero section */}
-        <LiveChallenges challenges={challenges} currentUserId={user.id} />
-
-        {/* Active draft competitions — full scorecard */}
-        <LiveDraftCompetitions draftChallenges={draftChallenges} />
+        {/* All live competitions — unified, manageable */}
+        <LiveAllCompetitions challenges={challenges} draftChallenges={draftChallenges} currentUserId={user.id} />
 
         {/* Non-active draft competitions (recruiting / voting / drafting / configuring) */}
         {nonActiveDraftActions.length > 0 && (
