@@ -70,6 +70,7 @@ function LogWorkoutInner() {
   const [proofType, setProofType] = useState('photo')
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
+  const [userNotes, setUserNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -192,7 +193,11 @@ function LogWorkoutInner() {
     const finalType = overrideData?.workout_type ?? workoutType
     const finalDuration = overrideData?.duration_minutes ?? duration
     const finalPoints = overrideData?.points ?? detailedPoints
-    const finalNotes = overrideData?.summary ?? (notes || null)
+    const aiSummary = overrideData?.summary ?? null
+    const personalNote = userNotes.trim() || notes.trim() || null
+    const finalNotes = aiSummary && personalNote
+      ? `${aiSummary}\n\n${personalNote}`
+      : aiSummary || personalNote || null
 
     const validationStatus = draftId
       ? (proofUrl ? 'approved' : 'pending')
@@ -474,6 +479,19 @@ function LogWorkoutInner() {
                   </div>
                 </div>
 
+                {/* Personal commentary */}
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1.5">Your commentary <span className="text-gray-700">(optional)</span></label>
+                  <textarea
+                    value={userNotes}
+                    onChange={e => setUserNotes(e.target.value)}
+                    placeholder="How'd it feel? Any PRs? Trash talk for the feed?"
+                    rows={2}
+                    maxLength={300}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 transition-colors resize-none"
+                  />
+                </div>
+
                 {/* Proof section */}
                 {renderProofSection()}
 
@@ -584,11 +602,11 @@ function LogWorkoutInner() {
 
             {/* Notes */}
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Notes (optional)</label>
+              <label className="block text-sm text-gray-400 mb-2">Your commentary <span className="text-gray-600 text-xs">(optional)</span></label>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                placeholder="What did you crush today?"
+                placeholder="What did you crush? Any PRs? Trash talk for the feed?"
                 rows={3}
                 maxLength={300}
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors resize-none"
