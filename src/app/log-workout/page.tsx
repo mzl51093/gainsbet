@@ -448,7 +448,7 @@ function LogWorkoutInner() {
                   </div>
 
                   <p className="text-xs text-gray-600 mb-2">Adjust if needed:</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-3">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Type</label>
                       <select
@@ -470,11 +470,33 @@ function LogWorkoutInner() {
                         type="number"
                         value={parsed.duration_minutes}
                         onChange={e => {
-                          const d = Math.max(10, Math.min(480, Number(e.target.value)))
+                          const raw = e.target.value
+                          const d = parseInt(raw, 10)
+                          if (!raw || isNaN(d) || d < 1) return
+                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.max(1, Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60) * earlyBird)) })
+                        }}
+                        onBlur={() => {
+                          const d = Math.max(10, Math.min(480, parsed.duration_minutes))
                           setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60) * earlyBird)) })
                         }}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
                       />
+                      <div className="flex gap-1.5 mt-2">
+                        {[20, 30, 45, 60, 90].map(d => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60) * earlyBird)) })}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              parsed.duration_minutes === d
+                                ? 'bg-green-500 text-black'
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                          >
+                            {d}m
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
