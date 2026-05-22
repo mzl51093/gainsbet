@@ -9,6 +9,7 @@ import PokeSection from '@/components/PokeSection'
 import PokeTutorial from '@/components/PokeTutorial'
 import ResolutionAlert from '@/components/ResolutionAlert'
 import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
+import { resolveExpiredWagers } from '@/lib/resolve-wager'
 
 export const revalidate = 0
 
@@ -39,12 +40,22 @@ export default async function DashboardPage() {
   const profileMap: Record<string, Profile> = {}
   for (const p of (allProfiles || [])) profileMap[p.id] = p
 
-  // Active challenges
-  const { data: activeWagers } = await supabase
+  // Active challenges — resolve any expired ones before building the UI
+  const { data: rawWagers } = await supabase
     .from('wagers')
     .select('*')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
+
+  const todayForExpiry = getTodayEastern()
+  const expiredWagers = (rawWagers || []).filter((w: any) =>
+    w.end_date && w.end_date < todayForExpiry && (w.team_player_ids || []).length > 0
+  )
+  if (expiredWagers.length > 0) {
+    await resolveExpiredWagers(admin, expiredWagers).catch(() => null)
+  }
+  const expiredIds = new Set(expiredWagers.map((w: any) => w.id))
+  const activeWagers = (rawWagers || []).filter((w: any) => !expiredIds.has(w.id))
 
   // Pending wagers not yet responded to by this user
   const { data: pendingWagers } = await supabase

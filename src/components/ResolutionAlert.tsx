@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const WIN_MESSAGES = [
@@ -33,6 +34,7 @@ interface Particle {
 }
 
 export default function ResolutionAlert({ currentUserId }: { currentUserId: string }) {
+  const router = useRouter()
   const [alert, setAlert] = useState<{ type: 'win' | 'loss'; title: string; stake: string } | null>(null)
   const [particles, setParticles] = useState<Particle[]>([])
   const [visible, setVisible] = useState(false)
@@ -156,16 +158,32 @@ export default function ResolutionAlert({ currentUserId }: { currentUserId: stri
 
         <p className="text-gray-400 text-sm mb-6 italic">{message}</p>
 
-        <button
-          onClick={() => { setVisible(false); setTimeout(() => setAlert(null), 500) }}
-          className={`w-full font-bold py-3 rounded-xl text-sm transition-colors ${
-            isWin
-              ? 'bg-green-500 hover:bg-green-400 text-black'
-              : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-          }`}
-        >
-          {isWin ? 'Collect my glory 👑' : 'Close (in shame) 😔'}
-        </button>
+        {isWin ? (
+          <button
+            onClick={() => { setVisible(false); setTimeout(() => setAlert(null), 500) }}
+            className="w-full font-bold py-3 rounded-xl text-sm transition-colors bg-green-500 hover:bg-green-400 text-black"
+          >
+            Collect my glory 👑
+          </button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => {
+                setVisible(false)
+                setTimeout(() => { setAlert(null); router.push('/wagers') }, 300)
+              }}
+              className="w-full font-bold py-3 rounded-xl text-sm transition-colors bg-red-600 hover:bg-red-500 text-white"
+            >
+              Go settle up 💸
+            </button>
+            <button
+              onClick={() => { setVisible(false); setTimeout(() => setAlert(null), 500) }}
+              className="w-full font-medium py-2 rounded-xl text-xs transition-colors bg-gray-800 hover:bg-gray-700 text-gray-400"
+            >
+              Close (in shame) 😔
+            </button>
+          </div>
+        )}
       </div>
 
       <style>{`

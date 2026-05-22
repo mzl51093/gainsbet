@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, cn } from '@/lib/utils'
 import { WEEKLY_GOAL } from '@/lib/points'
-import { getTodayEastern, getEndOfDayEasternISO, getEasternOffsetHours } from '@/lib/timezone'
+import { getTodayEastern, getEasternOffsetHours } from '@/lib/timezone'
 import type { Profile } from '@/lib/types'
 import CommentsSection from '@/components/CommentsSection'
 
@@ -549,28 +549,14 @@ export default function WagersClient({ currentUserId, allProfiles, weekStart }: 
       .order('created_at', { ascending: false })
     if (error) { setError('Fetch error: ' + error.message); setFetching(false); return }
 
-    // Auto-resolve expired active wagers (compare in Eastern time, not UTC)
+    // Auto-resolve expired active wagers via API (handles push notifications too)
     const todayEastern = getTodayEastern()
-    const expired = (data || []).filter(w =>
+    const hasExpired = (data || []).some(w =>
       w.status === 'active' && w.end_date && w.end_date < todayEastern && (w.team_player_ids || []).length > 0
     )
-    for (const wager of expired) {
-      const { data: workouts } = await supabase
-        .from('workouts').select('user_id, points')
-        .in('user_id', wager.team_player_ids)
-        .gte('logged_at', wager.week_start)
-        .lte('logged_at', getEndOfDayEasternISO(wager.end_date))
-      const pts: Record<string, number> = {}
-      for (const w of (workouts || [])) pts[w.user_id] = (pts[w.user_id] || 0) + w.points
-      const allWon = wager.team_player_ids.every((id: string) => (pts[id] || 0) >= wager.point_threshold)
-      const winner = allWon ? 'competitors' : 'partners'
-      await supabase.from('wagers').update({
-        status: 'resolved', winner, resolved_at: new Date().toISOString(),
-      }).eq('id', wager.id)
-      await createDebtRecord(supabase, wager, winner)
-    }
 
-    if (expired.length > 0) {
+    if (hasExpired) {
+      await fetch('/api/wagers/auto-resolve', { method: 'POST' }).catch(() => null)
       const { data: refreshed } = await supabase
         .from('wagers')
         .select('*, profiles!wagers_proposed_by_fkey(display_name, username), wager_acceptances(user_id)')
