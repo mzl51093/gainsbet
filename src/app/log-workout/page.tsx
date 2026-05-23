@@ -68,8 +68,8 @@ function LogWorkoutInner() {
 
   // Shared state
   const [proofType, setProofType] = useState('photo')
-  const [proofFile, setProofFile] = useState<File | null>(null)
-  const [proofPreview, setProofPreview] = useState<string | null>(null)
+  const [proofFiles, setProofFiles] = useState<File[]>([])
+  const [proofPreviews, setProofPreviews] = useState<string[]>([])
   const [userNotes, setUserNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -80,12 +80,21 @@ function LogWorkoutInner() {
   const ptsPerHour = getPtsPerHour(workoutType)
 
   function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setProofFile(file)
-    const reader = new FileReader()
-    reader.onloadend = () => setProofPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    const newFiles = Array.from(e.target.files || []).slice(0, 5)
+    if (newFiles.length === 0) return
+    // Reset input so the same file can be re-selected if removed
+    e.target.value = ''
+    setProofFiles(prev => [...prev, ...newFiles].slice(0, 5))
+    newFiles.forEach(file => {
+      const reader = new FileReader()
+      reader.onloadend = () => setProofPreviews(prev => [...prev, reader.result as string].slice(0, 5))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function removeProofFile(index: number) {
+    setProofFiles(prev => prev.filter((_, i) => i !== index))
+    setProofPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   function handleScanFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -122,9 +131,9 @@ function LogWorkoutInner() {
       if (!res.ok) throw new Error(data.error || 'Failed to analyze')
       setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
 
-      // Auto-set proof to the scanned image
-      setProofFile(scanFile)
-      setProofPreview(scanPreview)
+      // Auto-set proof to the scanned image (replace any existing proof)
+      setProofFiles([scanFile])
+      setProofPreviews([scanPreview])
       setProofType('screenshot')
     } catch (err: any) {
       setParseError(err.message || 'Could not read screenshot. Try again or use text description.')
@@ -175,19 +184,22 @@ function LogWorkoutInner() {
     if (!user) { router.push('/auth'); return }
 
     let proofUrl: string | null = null
-    const fileToUpload = proofFile
-    if (fileToUpload) {
-      const ext = fileToUpload.name.split('.').pop()
-      const filePath = `${user.id}/${Date.now()}.${ext}`
-      const { error: uploadError, data } = await supabase.storage
-        .from('workout-proofs')
-        .upload(filePath, fileToUpload, { cacheControl: '3600', upsert: false })
-      if (uploadError) {
-        setError('Failed to upload proof: ' + uploadError.message)
-        setLoading(false)
-        return
+    if (proofFiles.length > 0) {
+      const uploadedPaths: string[] = []
+      for (const file of proofFiles) {
+        const ext = file.name.split('.').pop()
+        const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error: uploadError, data } = await supabase.storage
+          .from('workout-proofs')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false })
+        if (uploadError) {
+          setError('Failed to upload proof: ' + uploadError.message)
+          setLoading(false)
+          return
+        }
+        uploadedPaths.push(data.path)
       }
-      proofUrl = data.path
+      proofUrl = uploadedPaths.length === 1 ? uploadedPaths[0] : JSON.stringify(uploadedPaths)
     }
 
     const finalType = overrideData?.workout_type ?? workoutType
@@ -210,7 +222,7 @@ function LogWorkoutInner() {
       points: finalPoints,
       notes: finalNotes,
       proof_url: proofUrl,
-      proof_type: fileToUpload ? proofType : null,
+      proof_type: proofFiles.length > 0 ? proofType : null,
       logged_at: new Date().toISOString(),
       ...(draftId ? { draft_competition_id: draftId, validation_status: validationStatus } : {}),
     })
@@ -655,6 +667,9 @@ function LogWorkoutInner() {
   )
 
   function renderProofSection() {
+    const MAX_PHOTOS = 5
+    const canAddMore = proofFiles.length < MAX_PHOTOS
+
     return (
       <div>
         <label className="block text-sm text-gray-400 mb-2">Proof (optional but encouraged)</label>
@@ -680,21 +695,43 @@ function LogWorkoutInner() {
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={handleProofFileChange}
           className="hidden"
         />
 
-        {proofPreview ? (
-          <div className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={proofPreview} alt="Proof preview" className="w-full rounded-xl object-cover max-h-48" />
-            <button
-              type="button"
-              onClick={() => { setProofFile(null); setProofPreview(null) }}
-              className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
-            >
-              ✕
-            </button>
+        {proofPreviews.length > 0 ? (
+          <div>
+            <div className="grid grid-cols-3 gap-2">
+              {proofPreviews.map((preview, i) => (
+                <div key={i} className="relative aspect-square">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={preview}
+                    alt={`Proof ${i + 1}`}
+                    className="w-full h-full rounded-xl object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeProofFile(i)}
+                    className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs leading-none"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {canAddMore && (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="aspect-square rounded-xl border-2 border-dashed border-gray-600 hover:border-gray-400 flex flex-col items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  <span className="text-2xl leading-none">+</span>
+                  <span className="text-xs mt-1">Add more</span>
+                </button>
+              )}
+            </div>
+            <p className="text-gray-600 text-xs mt-2">{proofFiles.length} / {MAX_PHOTOS} photos</p>
           </div>
         ) : (
           <button
@@ -703,7 +740,7 @@ function LogWorkoutInner() {
             className="w-full bg-gray-900 border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-xl py-6 text-center transition-colors"
           >
             <p className="text-gray-400 text-sm">Tap to upload proof</p>
-            <p className="text-gray-600 text-xs mt-1">Photo, screenshot, tracker export</p>
+            <p className="text-gray-600 text-xs mt-1">Photo, screenshot, tracker — up to 5</p>
           </button>
         )}
       </div>
