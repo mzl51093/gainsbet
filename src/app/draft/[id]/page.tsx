@@ -81,6 +81,74 @@ export default async function DraftCompetitionPage({
 
       if (comp.status === 'active') {
         pendingWorkouts = workouts.filter((w: any) => w.validation_status === 'pending')
+
+        // Auto-complete: check if a team has hit the point goal with all members
+        // meeting the minimum contribution. Counts only approved workouts.
+        const approvedWorkouts = workouts.filter((w: any) => w.validation_status === 'approved')
+        const goal = comp.point_goal
+        const minPct = comp.min_contribution_pct || 0
+        const minRequired = minPct > 0 ? Math.ceil((goal * minPct) / 100) : 0
+
+        function teamQualifies(letter: 'a' | 'b'): boolean {
+          const members = (participants || []).filter((p: any) => p.team === letter)
+          const total = members.reduce((sum: number, p: any) => {
+            return sum + approvedWorkouts.filter((w: any) => w.user_id === p.user_id).reduce((s: number, w: any) => s + w.points, 0)
+          }, 0)
+          if (total < goal) return false
+          if (minRequired === 0) return true
+          return members.every((p: any) => {
+            const pts = approvedWorkouts.filter((w: any) => w.user_id === p.user_id).reduce((s: number, w: any) => s + w.points, 0)
+            return pts >= minRequired
+          })
+        }
+
+        const aQualifies = teamQualifies('a')
+        const bQualifies = teamQualifies('b')
+
+        if (aQualifies || bQualifies) {
+          let winner: 'a' | 'b'
+          if (aQualifies && !bQualifies) winner = 'a'
+          else if (bQualifies && !aQualifies) winner = 'b'
+          else {
+            // Both qualified simultaneously — whoever has more points wins
+            const aTotal = (participants || []).filter((p: any) => p.team === 'a')
+              .reduce((s: number, p: any) => s + approvedWorkouts.filter((w: any) => w.user_id === p.user_id).reduce((ss: number, w: any) => ss + w.points, 0), 0)
+            const bTotal = (participants || []).filter((p: any) => p.team === 'b')
+              .reduce((s: number, p: any) => s + approvedWorkouts.filter((w: any) => w.user_id === p.user_id).reduce((ss: number, w: any) => ss + w.points, 0), 0)
+            winner = aTotal >= bTotal ? 'a' : 'b'
+          }
+
+          await admin.from('draft_competitions').update({ status: 'completed', winner_team: winner }).eq('id', id)
+
+          // Notify all participants
+          const { sendPushToUser } = await import('@/lib/push')
+          const { saveNotification } = await import('@/lib/notifications-db')
+          const winnerName = winner === 'a'
+            ? (participants || []).find((p: any) => p.user_id === comp.captain_a_id)?.profiles?.display_name?.split(' ')[0] || 'Team A'
+            : (participants || []).find((p: any) => p.user_id === comp.captain_b_id)?.profiles?.display_name?.split(' ')[0] || 'Team B'
+
+          await Promise.all((participants || []).map(async (p: any) => {
+            const isWinner = p.team === winner
+            const notif = isWinner ? {
+              type: 'draft_completed_win',
+              title: `🏆 ${comp.name} — Your team won!`,
+              body: comp.wager_description ? `Collect your prize: "${comp.wager_description}"` : 'Goal reached. You earned it.',
+              url: `/draft/${id}`,
+            } : {
+              type: 'draft_completed_loss',
+              title: `💀 ${comp.name} — ${winnerName}'s team wins.`,
+              body: comp.wager_description ? `You owe: "${comp.wager_description}"` : 'Better luck next time.',
+              url: `/draft/${id}`,
+            }
+            await Promise.all([
+              sendPushToUser(p.user_id, notif).catch(() => null),
+              saveNotification(p.user_id, notif),
+            ])
+          }))
+
+          // Reload with completed status so the page renders the results view
+          redirect(`/draft/${id}`)
+        }
       }
     }
   }

@@ -344,8 +344,13 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
   const myTotal  = myTeamPlayers.reduce((s, p) => s + p.points, 0)
   const oppTotal = opponents.reduce((s, p) => s + p.points, 0)
   const minRequired = comp.minContributionPct > 0 ? Math.ceil((comp.pointGoal * comp.minContributionPct) / 100) : 0
-  const imWinning = myTotal > oppTotal
-  const imLosing  = oppTotal > myTotal
+
+  // Goal-based winning: a team wins when they hit pointGoal AND every member
+  // meets the minimum contribution. Raw totals don't matter once the goal is hit.
+  const myHitGoal  = myTotal  >= comp.pointGoal && (minRequired === 0 || myTeamPlayers.every(p => p.points >= minRequired))
+  const oppHitGoal = oppTotal >= comp.pointGoal && (minRequired === 0 || opponents.every(p => p.points >= minRequired))
+  const imWinning  = myHitGoal  || (!oppHitGoal && myTotal > oppTotal)
+  const imLosing   = !myHitGoal && (oppHitGoal  || oppTotal > myTotal)
   const teamProjected = comp.daysElapsed > 0 ? Math.round((myTotal / comp.daysElapsed) * comp.daysTotal) : myTotal
   const teamOnTrack = teamProjected >= comp.pointGoal || myTotal >= comp.pointGoal
   const myProgress = myTeamPlayers.find(p => p.isMe)
@@ -453,9 +458,10 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
                   <span className="text-xs text-gray-500">{myTotal} / {comp.pointGoal} pts</span>
                 </div>
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${imWinning ? 'bg-green-500' : imLosing ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, (myTotal / comp.pointGoal) * 100)}%` }} />
+                  <div className={`h-full rounded-full ${myHitGoal ? 'bg-green-500' : myTotal / comp.pointGoal >= 0.7 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, (myTotal / comp.pointGoal) * 100)}%` }} />
                 </div>
-                {!teamOnTrack && teamPtsNeeded > 0 && <p className="text-xs text-gray-600 mt-0.5">Team needs <span className="text-white">{teamPtsNeeded} more pts</span>{daysLeftNum > 0 && ` · ~${Math.ceil(teamPtsNeeded / daysLeftNum)}/day pace`}</p>}
+                {myHitGoal && <p className="text-xs text-green-400 mt-0.5 font-medium">🎯 Goal reached!</p>}
+                {!myHitGoal && teamPtsNeeded > 0 && <p className="text-xs text-gray-600 mt-0.5">Team needs <span className="text-white">{teamPtsNeeded} more pts</span>{daysLeftNum > 0 && ` · ~${Math.ceil(teamPtsNeeded / daysLeftNum)}/day pace`}</p>}
               </div>
             </div>
           )}
@@ -486,8 +492,9 @@ function DraftCard({ comp, collapsed, onToggleCollapse, editMode, isFirst, isLas
                 <span className="text-xs text-gray-500">{oppTotal} / {comp.pointGoal} pts</span>
               </div>
               <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${oppTotal > myTotal ? 'bg-red-600' : 'bg-gray-600'}`} style={{ width: `${Math.min(100, (oppTotal / comp.pointGoal) * 100)}%` }} />
+                <div className={`h-full rounded-full ${oppHitGoal ? 'bg-green-500' : oppTotal / comp.pointGoal >= 0.7 ? 'bg-yellow-500' : 'bg-gray-600'}`} style={{ width: `${Math.min(100, (oppTotal / comp.pointGoal) * 100)}%` }} />
               </div>
+              {oppHitGoal && <p className="text-xs text-red-400 mt-0.5 text-right font-medium">⚠ Opponents hit goal</p>}
             </div>
           </div>
           {nudge && (
