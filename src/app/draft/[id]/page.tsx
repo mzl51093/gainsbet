@@ -120,6 +120,21 @@ export default async function DraftCompetitionPage({
 
           await admin.from('draft_competitions').update({ status: 'completed', winner_team: winner }).eq('id', id)
 
+          // Create debt record for the losing team
+          if (comp.wager_description) {
+            const winnerIds = (participants || []).filter((p: any) => p.team === winner).map((p: any) => p.user_id)
+            const loserIds  = (participants || []).filter((p: any) => p.team !== winner).map((p: any) => p.user_id)
+            if (winnerIds.length > 0 && loserIds.length > 0) {
+              await admin.from('wager_debts').insert({
+                wager_title: comp.name,
+                debtor_ids: loserIds,
+                creditor_ids: winnerIds,
+                description: comp.wager_description,
+                status: 'outstanding',
+              }).select().then(() => null, () => null)  // no-op if wager_id NOT NULL constraint exists
+            }
+          }
+
           // Notify all participants
           const { sendPushToUser } = await import('@/lib/push')
           const { saveNotification } = await import('@/lib/notifications-db')
