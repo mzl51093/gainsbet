@@ -10,6 +10,8 @@ import PokeTutorial from '@/components/PokeTutorial'
 import ResolutionAlert from '@/components/ResolutionAlert'
 import { getTodayEastern, daysLeftEastern, getEndOfDayEasternISO } from '@/lib/timezone'
 import { resolveExpiredWagers } from '@/lib/resolve-wager'
+import { sendPushToUser } from '@/lib/push'
+import { saveNotification } from '@/lib/notifications-db'
 
 export const revalidate = 0
 
@@ -330,10 +332,13 @@ export default async function DashboardPage() {
     const { data: draftWorkouts } = allDraftPlayerIds.length > 0
       ? await supabase
           .from('workouts')
-          .select('user_id, points, logged_at')
+          .select('user_id, points, logged_at, validation_status')
           .in('user_id', allDraftPlayerIds)
           .gte('logged_at', earliestDraftStart)
       : { data: [] }
+
+    // Track which competitions were auto-completed so we can skip them below
+    const autoCompletedDraftIds = new Set<string>()
 
     for (const d of fullDraftComps || []) {
       const compParticipants = (allDraftParticipants || []).filter((p: any) => p.competition_id === d.id)
@@ -346,13 +351,85 @@ export default async function DashboardPage() {
       const daysLeft: number | null = d.end_date ? daysLeftEastern(d.end_date) : null
 
       const participantPts: Record<string, number> = {}
+      const approvedPts: Record<string, number> = {}
       for (const w of draftWorkouts || []) {
         const loggedAt = new Date(w.logged_at)
         const inWindow = loggedAt >= start && (!endMidnight || loggedAt <= endMidnight)
         if (inWindow && compParticipants.some((p: any) => p.user_id === w.user_id)) {
           participantPts[w.user_id] = (participantPts[w.user_id] || 0) + w.points
+          if (w.validation_status !== 'pending') {
+            approvedPts[w.user_id] = (approvedPts[w.user_id] || 0) + w.points
+          }
         }
       }
+
+      // Auto-complete: check if a team has hit the goal with all members meeting min contribution
+      const goal = d.point_goal
+      const minRequired = d.min_contribution_pct > 0 ? Math.ceil((goal * d.min_contribution_pct) / 100) : 0
+      function draftTeamQualifies(letter: 'a' | 'b'): boolean {
+        const members = compParticipants.filter((p: any) => p.team === letter)
+        const total = members.reduce((s: number, p: any) => s + (approvedPts[p.user_id] || 0), 0)
+        if (total < goal) return false
+        if (minRequired === 0) return true
+        return members.every((p: any) => (approvedPts[p.user_id] || 0) >= minRequired)
+      }
+      const aQualifies = draftTeamQualifies('a')
+      const bQualifies = draftTeamQualifies('b')
+
+      if (aQualifies || bQualifies) {
+        let winner: 'a' | 'b'
+        if (aQualifies && !bQualifies) winner = 'a'
+        else if (bQualifies && !aQualifies) winner = 'b'
+        else {
+          const aTotal = compParticipants.filter((p: any) => p.team === 'a').reduce((s: number, p: any) => s + (approvedPts[p.user_id] || 0), 0)
+          const bTotal = compParticipants.filter((p: any) => p.team === 'b').reduce((s: number, p: any) => s + (approvedPts[p.user_id] || 0), 0)
+          winner = aTotal >= bTotal ? 'a' : 'b'
+        }
+
+        // Atomic guard — only proceed if not already completed
+        const { data: updated } = await admin.from('draft_competitions')
+          .update({ status: 'completed', winner_team: winner })
+          .eq('id', d.id).eq('status', 'active').select('id')
+
+        if (updated && updated.length > 0) {
+          autoCompletedDraftIds.add(d.id)
+
+          // Debt record for losers
+          if (d.wager_description) {
+            const winnerIds = compParticipants.filter((p: any) => p.team === winner).map((p: any) => p.user_id)
+            const loserIds  = compParticipants.filter((p: any) => p.team !== winner).map((p: any) => p.user_id)
+            if (winnerIds.length > 0 && loserIds.length > 0) {
+              await admin.from('wager_debts').insert({
+                wager_title: d.name, debtor_ids: loserIds, creditor_ids: winnerIds,
+                description: d.wager_description, status: 'outstanding',
+              }).select().then(() => null, () => null)
+            }
+          }
+
+          // Push + in-app notifications
+          const captainA = compParticipants.find((p: any) => p.user_id === d.captain_a_id)
+          const captainB = compParticipants.find((p: any) => p.user_id === d.captain_b_id)
+          const winnerName = winner === 'a'
+            ? profileMap[captainA?.user_id]?.display_name?.split(' ')[0] || 'Team A'
+            : profileMap[captainB?.user_id]?.display_name?.split(' ')[0] || 'Team B'
+          await Promise.all(compParticipants.map(async (p: any) => {
+            const isWinner = p.team === winner
+            const notif = isWinner ? {
+              type: 'draft_completed_win', title: `🏆 ${d.name} — Your team won!`,
+              body: d.wager_description ? `Collect your prize: "${d.wager_description}"` : 'Goal reached. You earned it.',
+              url: `/draft/${d.id}`,
+            } : {
+              type: 'draft_completed_loss', title: `💀 ${d.name} — ${winnerName}'s team wins.`,
+              body: d.wager_description ? `You owe: "${d.wager_description}"` : 'Better luck next time.',
+              url: `/draft/${d.id}`,
+            }
+            await Promise.all([sendPushToUser(p.user_id, notif).catch(() => null), saveNotification(p.user_id, notif)])
+          }))
+        }
+      }
+
+      // Skip rendering competitions that were just auto-completed
+      if (autoCompletedDraftIds.has(d.id)) continue
 
       const buildParticipant = (p: any): DraftParticipantProgress => ({
         profile: profileMap[p.user_id],
