@@ -466,6 +466,20 @@ export default async function DashboardPage() {
   // Filter action cards to exclude active competitions — they show as full scorecards above
   const nonActiveDraftActions = draftActions.filter(d => d.status !== 'active')
 
+  // Active duels for the current user
+  const { data: rawActiveDuels } = await admin
+    .from('duel_challenges')
+    .select('id, name, competitor_a_id, competitor_b_id, watcher_ids, wager, end_date')
+    .eq('status', 'active')
+    .or(`competitor_a_id.eq.${user.id},competitor_b_id.eq.${user.id},watcher_ids.cs.{${user.id}}`)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const activeDuels = (rawActiveDuels || []).filter((d: any) => {
+    if (!d.end_date) return true
+    return d.end_date >= todayEasternStr
+  })
+
   // Build feed user IDs from data already loaded — avoids unreliable admin .contains() on array columns
   const feedUserIds = new Set<string>([user.id])
 
@@ -625,6 +639,50 @@ export default async function DashboardPage() {
             </Link>
           </div>
         )}
+        {/* Active Duels */}
+        {activeDuels.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-white font-semibold">⚔️ Duels</h2>
+              <Link href="/duel" className="text-green-400 text-xs">View all →</Link>
+            </div>
+            {activeDuels.map((duel: any) => {
+              const daysLeft = duel.end_date
+                ? Math.max(0, Math.ceil((new Date(duel.end_date).getTime() - new Date(todayEasternStr).getTime()) / 86400000))
+                : null
+              const aName = profileMap[duel.competitor_a_id]?.display_name?.split(' ')[0] || '?'
+              const bName = profileMap[duel.competitor_b_id]?.display_name?.split(' ')[0] || '?'
+              const amI = user.id === duel.competitor_a_id || user.id === duel.competitor_b_id
+              return (
+                <Link key={duel.id} href={`/duel/${duel.id}`}>
+                  <div className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition-colors">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <h3 className="text-white font-semibold text-sm truncate">{duel.name}</h3>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ${
+                        daysLeft !== null && daysLeft <= 2
+                          ? 'bg-red-900/50 text-red-400'
+                          : 'bg-green-900/30 text-green-400'
+                      }`}>
+                        {daysLeft !== null ? `${daysLeft}d left` : 'Active'}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs">
+                      {aName} ⚔️ {bName}
+                      {!amI && <span className="text-gray-600"> · watching</span>}
+                    </p>
+                    {duel.wager && (
+                      <p className="text-gray-600 text-xs mt-0.5 truncate">💸 {duel.wager}</p>
+                    )}
+                  </div>
+                </Link>
+              )
+            })}
+            <Link href="/duel/new" className="block text-center text-green-400 text-xs py-1">
+              + New duel
+            </Link>
+          </div>
+        )}
+
         {/* Explore CTA */}
         <Link href="/discover" className="block bg-gray-900 hover:bg-gray-800 border border-gray-700/50 rounded-2xl p-4 transition-colors">
           <div className="flex items-center gap-3">

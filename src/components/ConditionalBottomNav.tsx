@@ -12,6 +12,7 @@ const NAV_PATHS = [
   '/profile',
   '/draft',
   '/player',
+  '/duel',
 ]
 
 export default function ConditionalBottomNav() {
