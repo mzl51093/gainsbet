@@ -307,7 +307,7 @@ export default function NewDuelPage() {
             <p className="text-gray-400 text-xs font-semibold mb-2">📊 How scoring works</p>
             <ul className="text-gray-500 text-xs space-y-1">
               <li>• <span className="text-gray-300">Workout Points</span> — same as regular workouts</li>
-              <li>• <span className="text-gray-300">Weight Loss Points</span> — each 1% of body weight lost = 25 pts</li>
+              <li>• <span className="text-gray-300">Weight Loss Points</span> — each 1 lb lost = 25 pts</li>
               <li>• Uses lowest verified weigh-in (not current) to prevent yo-yo penalty</li>
               <li>• Total = Workout Pts + Weight Loss Pts</li>
             </ul>

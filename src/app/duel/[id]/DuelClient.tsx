@@ -113,7 +113,7 @@ function computeScores(
   let weightLossPts = 0
   if (startingWeight && lowestWeight && lowestWeight < startingWeight) {
     weightLossPct = ((startingWeight - lowestWeight) / startingWeight) * 100
-    weightLossPts = weightLossPct * 25
+    weightLossPts = (startingWeight - lowestWeight) * 25
   }
   return { workoutPts, weightLossPct, weightLossPts, total: workoutPts + weightLossPts }
 }
@@ -510,11 +510,11 @@ export default function DuelClient({
                           const trailingId = projLead > 0 ? duel.competitor_b_id : duel.competitor_a_id
                           const trailingStart = trailingId === duel.competitor_a_id ? duel.starting_weight_a : duel.starting_weight_b
                           if (trailingStart && daysLeft > 0) {
-                            const pctNeeded = (Math.abs(projLead) + 1) / 25
+                            const lbsNeeded = (Math.abs(projLead) + 1) / 25
                             return (
                               <p className="text-gray-600 text-xs mt-0.5">
                                 Or lose an extra{' '}
-                                <span className="text-blue-400">{pctNeeded.toFixed(2)}% body weight</span>
+                                <span className="text-blue-400">{lbsNeeded.toFixed(1)} lbs</span>
                               </p>
                             )
                           }
