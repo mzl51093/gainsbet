@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/duel/checkin-reminder",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

@@ -48,6 +48,8 @@ export default async function DuelPage({
     { data: comments },
     { data: reactions },
     { data: watcherProfiles },
+    { data: checkInsA },
+    { data: checkInsB },
   ] = await Promise.all([
     admin
       .from('workouts')
@@ -84,6 +86,18 @@ export default async function DuelPage({
           .select('id, display_name, username')
           .in('id', duel.watcher_ids)
       : Promise.resolve({ data: [] }),
+    admin
+      .from('duel_daily_checkins')
+      .select('*')
+      .eq('duel_id', id)
+      .eq('user_id', duel.competitor_a_id)
+      .order('check_in_date', { ascending: false }),
+    admin
+      .from('duel_daily_checkins')
+      .select('*')
+      .eq('duel_id', id)
+      .eq('user_id', duel.competitor_b_id)
+      .order('check_in_date', { ascending: false }),
   ])
 
   return (
@@ -96,6 +110,8 @@ export default async function DuelPage({
         comments={comments || []}
         reactions={reactions || []}
         watcherProfiles={watcherProfiles || []}
+        checkInsA={checkInsA || []}
+        checkInsB={checkInsB || []}
         currentUserId={user.id}
         duelId={id}
       />
