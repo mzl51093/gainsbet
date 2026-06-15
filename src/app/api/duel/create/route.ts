@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   if (error || !duel) {
     console.error('Failed to create duel:', error)
-    return NextResponse.json({ error: 'Failed to create duel' }, { status: 500 })
+    return NextResponse.json({ error: error?.message || 'Failed to create duel' }, { status: 500 })
   }
 
   // Notify all participants
