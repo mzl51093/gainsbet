@@ -294,7 +294,7 @@ export default function DuelClient({
   ]
   const taunt = watcherTaunts[duelId.charCodeAt(0) % watcherTaunts.length]
 
-  const liveHasMeals = [breakfastNotes, lunchNotes, dinnerNotes, snackNotes].some(s => s.trim())
+  const liveHasMeals = [breakfastNotes, lunchNotes, dinnerNotes, snackNotes].every(s => s.trim())
   const liveHasDisqualifier = Object.values(disqualifiers).some(Boolean)
   const liveWouldEarn = liveHasMeals && !liveHasDisqualifier
 
@@ -946,7 +946,7 @@ export default function DuelClient({
                   ? '✓ Earns Healthy Day Bonus (+10 pts)'
                   : liveHasDisqualifier
                     ? '✗ Disqualified — no bonus'
-                    : 'Log at least one meal to qualify'}
+                    : 'Log all meals to qualify'}
               </p>
             </div>
 
@@ -1004,7 +1004,7 @@ export default function DuelClient({
               {submittingCheckIn ? 'Saving...' : liveWouldEarn ? '🥗 Submit & Earn +10 pts' : '📋 Submit Check-In'}
             </button>
             {!liveHasMeals && (
-              <p className="text-gray-600 text-xs text-center mt-2">Log at least one meal to submit</p>
+              <p className="text-gray-600 text-xs text-center mt-2">Log all meals to submit</p>
             )}
           </div>
         </div>

@@ -54,7 +54,7 @@ export async function POST(
   } = body
 
   const hasMealEntry = [breakfast_notes, lunch_notes, dinner_notes, snack_notes]
-    .some((s: string | null | undefined) => s?.trim())
+    .every((s: string | null | undefined) => s?.trim())
 
   const hasDisqualifier = !!(drank_alcohol || ate_fried_food || ate_fast_food || ate_dessert || had_binge_meal)
 
