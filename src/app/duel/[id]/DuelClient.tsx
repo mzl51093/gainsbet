@@ -113,34 +113,13 @@ const WORKOUT_EMOJIS: Record<string, string> = {
 
 const QUICK_REACTIONS = ['🔥', '💀', '👏', '😬', '💪', '🫠']
 
-const POSITIVE_HABITS = [
-  { key: 'ate_protein', label: 'Ate protein at most meals', points: +25 },
-  { key: 'ate_vegetables', label: 'Ate fruits and/or vegetables', points: +25 },
-  { key: 'drank_water', label: 'Drank enough water', points: +25 },
-  { key: 'within_goals', label: 'Stayed within my eating goals', points: +25 },
+const DISQUALIFIERS = [
+  { key: 'drank_alcohol', label: 'Drank alcohol' },
+  { key: 'ate_fried_food', label: 'Ate fried food' },
+  { key: 'ate_fast_food', label: 'Ate fast food' },
+  { key: 'ate_dessert', label: 'Ate dessert/cookies/candy' },
+  { key: 'had_binge_meal', label: 'Had a binge meal' },
 ] as const
-
-const NEGATIVE_HABITS = [
-  { key: 'drank_alcohol', label: 'Drank alcohol', points: -40 },
-  { key: 'ate_fried_food', label: 'Ate fried food', points: -30 },
-  { key: 'ate_fast_food', label: 'Ate fast food', points: -40 },
-  { key: 'ate_dessert', label: 'Ate dessert/cookies/candy', points: -15 },
-  { key: 'had_binge_meal', label: 'Had a binge meal', points: -50 },
-] as const
-
-function computeLiveHealthScore(form: Record<string, boolean>): number {
-  let score = 100
-  if (form.ate_protein) score += 25
-  if (form.ate_vegetables) score += 25
-  if (form.drank_water) score += 25
-  if (form.within_goals) score += 25
-  if (form.drank_alcohol) score -= 40
-  if (form.ate_fried_food) score -= 30
-  if (form.ate_fast_food) score -= 40
-  if (form.ate_dessert) score -= 15
-  if (form.had_binge_meal) score -= 50
-  return Math.max(0, Math.min(200, score))
-}
 
 function computeStreak(checkIns: CheckIn[]): number {
   const earned = checkIns
@@ -228,11 +207,14 @@ export default function DuelClient({
 
   // Check-in form state
   const [showCheckIn, setShowCheckIn] = useState(false)
-  const [mealDescription, setMealDescription] = useState('')
-  const [checkInForm, setCheckInForm] = useState<Record<string, boolean>>({})
+  const [breakfastNotes, setBreakfastNotes] = useState('')
+  const [lunchNotes, setLunchNotes] = useState('')
+  const [dinnerNotes, setDinnerNotes] = useState('')
+  const [snackNotes, setSnackNotes] = useState('')
+  const [disqualifiers, setDisqualifiers] = useState<Record<string, boolean>>({})
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false)
   const [checkInError, setCheckInError] = useState('')
-  const [checkInResult, setCheckInResult] = useState<{ health_score: number; earned_bonus: boolean } | null>(null)
+  const [checkInResult, setCheckInResult] = useState<{ earned_bonus: boolean } | null>(null)
 
   // Weigh-in form state
   const [weight, setWeight] = useState('')
@@ -312,8 +294,9 @@ export default function DuelClient({
   ]
   const taunt = watcherTaunts[duelId.charCodeAt(0) % watcherTaunts.length]
 
-  const liveScore = computeLiveHealthScore(checkInForm)
-  const liveWouldEarn = liveScore >= 150
+  const liveHasMeals = [breakfastNotes, lunchNotes, dinnerNotes, snackNotes].some(s => s.trim())
+  const liveHasDisqualifier = Object.values(disqualifiers).some(Boolean)
+  const liveWouldEarn = liveHasMeals && !liveHasDisqualifier
 
   async function submitCheckIn() {
     setSubmittingCheckIn(true)
@@ -321,13 +304,21 @@ export default function DuelClient({
     const res = await fetch(`/api/duel/${duelId}/checkin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meal_description: mealDescription, ...checkInForm }),
+      body: JSON.stringify({
+        breakfast_notes: breakfastNotes || null,
+        lunch_notes: lunchNotes || null,
+        dinner_notes: dinnerNotes || null,
+        snack_notes: snackNotes || null,
+        ...disqualifiers,
+      }),
     })
     setSubmittingCheckIn(false)
     if (res.ok) {
       const data = await res.json()
       setCheckInResult(data)
       setShowCheckIn(false)
+      setBreakfastNotes(''); setLunchNotes(''); setDinnerNotes(''); setSnackNotes('')
+      setDisqualifiers({})
       router.refresh()
     } else {
       const d = await res.json()
@@ -335,8 +326,8 @@ export default function DuelClient({
     }
   }
 
-  function toggleHabit(key: string) {
-    setCheckInForm(prev => ({ ...prev, [key]: !prev[key] }))
+  function toggleDisqualifier(key: string) {
+    setDisqualifiers(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   async function postComment() {
@@ -420,9 +411,6 @@ export default function DuelClient({
     const tB = 'logged_at' in b ? b.logged_at : 'weighed_at' in b ? (b as any).weighed_at : (b as any).created_at
     return new Date(tB).getTime() - new Date(tA).getTime()
   })
-
-  const healthScoreColor = (score: number) =>
-    score >= 150 ? 'text-green-400' : score >= 100 ? 'text-yellow-400' : 'text-red-400'
 
   return (
     <>
@@ -544,21 +532,6 @@ export default function DuelClient({
                   )}
                 </div>
 
-                {alreadyCheckedIn && myTodayCheckIn && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          myTodayCheckIn.health_score >= 150 ? 'bg-green-500' : 'bg-yellow-500'
-                        }`}
-                        style={{ width: `${(myTodayCheckIn.health_score / 200) * 100}%` }}
-                      />
-                    </div>
-                    <span className={`text-xs font-bold ${healthScoreColor(myTodayCheckIn.health_score)}`}>
-                      {myTodayCheckIn.health_score}
-                    </span>
-                  </div>
-                )}
               </div>
             )}
 
@@ -568,9 +541,8 @@ export default function DuelClient({
                 checkInResult.earned_bonus ? 'bg-green-950/40 border-green-600/50' : 'bg-gray-900 border-gray-700'
               }`}>
                 <p className={`text-2xl font-black ${checkInResult.earned_bonus ? 'text-green-400' : 'text-gray-400'}`}>
-                  {checkInResult.earned_bonus ? '🥗 Healthy Day Bonus! +10 pts' : 'Check-in logged'}
+                  {checkInResult.earned_bonus ? '🥗 Healthy Day Bonus! +10 pts' : 'Check-in logged. No bonus today.'}
                 </p>
-                <p className="text-gray-500 text-sm mt-1">Health score: {checkInResult.health_score}/200</p>
                 <button onClick={() => setCheckInResult(null)} className="text-gray-600 text-xs mt-2">dismiss</button>
               </div>
             )}
@@ -864,7 +836,7 @@ export default function DuelClient({
                           <p className="text-gray-600 text-xs">pts</p>
                         </>
                       ) : (
-                        <p className={`text-sm font-bold ${healthScoreColor(ci.health_score)}`}>{ci.health_score}</p>
+                        <p className="text-gray-500 text-xs">no bonus</p>
                       )}
                     </div>
                   </div>
@@ -954,77 +926,69 @@ export default function DuelClient({
             className="w-full max-w-lg bg-gray-900 rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold text-lg">🥗 Daily Check-In</h2>
               <button onClick={() => setShowCheckIn(false)} className="text-gray-500 text-sm">Cancel</button>
             </div>
 
-            {/* Live score preview */}
-            <div className={`rounded-2xl p-3 mb-5 text-center border ${
-              liveWouldEarn ? 'bg-green-950/30 border-green-700/50' : 'bg-gray-800 border-gray-700'
+            {/* Live status */}
+            <div className={`rounded-2xl px-4 py-3 mb-5 border ${
+              liveWouldEarn
+                ? 'bg-green-950/30 border-green-700/50'
+                : liveHasDisqualifier
+                  ? 'bg-red-950/20 border-red-800/50'
+                  : 'bg-gray-800 border-gray-700'
             }`}>
-              <p className={`text-3xl font-black ${liveWouldEarn ? 'text-green-400' : 'text-gray-300'}`}>
-                {liveScore}<span className="text-lg font-normal text-gray-500">/200</span>
+              <p className={`text-sm font-bold ${
+                liveWouldEarn ? 'text-green-400' : liveHasDisqualifier ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {liveWouldEarn
+                  ? '✓ Earns Healthy Day Bonus (+10 pts)'
+                  : liveHasDisqualifier
+                    ? '✗ Disqualified — no bonus'
+                    : 'Log at least one meal to qualify'}
               </p>
-              <p className={`text-xs mt-0.5 font-semibold ${liveWouldEarn ? 'text-green-400' : 'text-gray-500'}`}>
-                {liveWouldEarn ? '✓ Earns Healthy Day Bonus (+10 pts)' : `Need ${150 - liveScore} more to earn bonus`}
-              </p>
             </div>
 
-            {/* What did you eat */}
-            <div className="mb-5">
-              <label className="text-gray-400 text-xs font-semibold block mb-2">What did you eat today? (optional)</label>
-              <textarea value={mealDescription} onChange={e => setMealDescription(e.target.value)}
-                placeholder="e.g. Eggs and fruit for breakfast, salad for lunch, chicken for dinner..."
-                rows={2} maxLength={300}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 border border-gray-700 focus:border-green-500 focus:outline-none resize-none" />
+            {/* Meal log */}
+            <div className="mb-5 space-y-3">
+              <p className="text-gray-400 text-xs font-semibold">What did you eat today?</p>
+              {[
+                { label: '🌅 Breakfast', value: breakfastNotes, set: setBreakfastNotes, placeholder: 'e.g. Eggs, toast, coffee' },
+                { label: '☀️ Lunch', value: lunchNotes, set: setLunchNotes, placeholder: 'e.g. Chicken salad' },
+                { label: '🌙 Dinner', value: dinnerNotes, set: setDinnerNotes, placeholder: 'e.g. Salmon and veggies' },
+                { label: '🍎 Snacks', value: snackNotes, set: setSnackNotes, placeholder: 'e.g. Apple, almonds' },
+              ].map(({ label, value, set, placeholder }) => (
+                <div key={label}>
+                  <label className="text-gray-500 text-xs block mb-1">{label}</label>
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={e => set(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 text-sm placeholder-gray-600 border border-gray-700 focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              ))}
             </div>
 
-            {/* Positive habits */}
-            <div className="mb-4">
-              <p className="text-gray-400 text-xs font-semibold mb-2">✅ Positive Habits</p>
-              <div className="space-y-2">
-                {POSITIVE_HABITS.map(({ key, label, points }) => (
-                  <button key={key} type="button" onClick={() => toggleHabit(key)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-colors ${
-                      checkInForm[key]
-                        ? 'bg-green-900/40 border border-green-600/60 text-green-300'
-                        : 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
-                    }`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
-                        checkInForm[key] ? 'bg-green-500 border-green-500' : 'border-gray-600'
-                      }`}>
-                        {checkInForm[key] && <span className="text-black text-xs font-bold">✓</span>}
-                      </span>
-                      <span>{label}</span>
-                    </div>
-                    <span className="text-green-400 text-xs font-bold flex-shrink-0">+{points}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Negative habits */}
+            {/* Disqualifiers */}
             <div className="mb-6">
-              <p className="text-gray-400 text-xs font-semibold mb-2">❌ Negative Habits (check if applicable)</p>
+              <p className="text-gray-400 text-xs font-semibold mb-2">❌ Disqualifiers — check if any apply</p>
               <div className="space-y-2">
-                {NEGATIVE_HABITS.map(({ key, label, points }) => (
-                  <button key={key} type="button" onClick={() => toggleHabit(key)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-colors ${
-                      checkInForm[key]
+                {DISQUALIFIERS.map(({ key, label }) => (
+                  <button key={key} type="button" onClick={() => toggleDisqualifier(key)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
+                      disqualifiers[key]
                         ? 'bg-red-900/30 border border-red-700/50 text-red-300'
                         : 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
                     }`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
-                        checkInForm[key] ? 'bg-red-500 border-red-500' : 'border-gray-600'
-                      }`}>
-                        {checkInForm[key] && <span className="text-white text-xs font-bold">✓</span>}
-                      </span>
-                      <span>{label}</span>
-                    </div>
-                    <span className="text-red-400 text-xs font-bold flex-shrink-0">{points}</span>
+                    <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                      disqualifiers[key] ? 'bg-red-500 border-red-500' : 'border-gray-600'
+                    }`}>
+                      {disqualifiers[key] && <span className="text-white text-xs font-bold">✓</span>}
+                    </span>
+                    {label}
                   </button>
                 ))}
               </div>
@@ -1032,10 +996,16 @@ export default function DuelClient({
 
             {checkInError && <p className="text-red-400 text-sm mb-3">{checkInError}</p>}
 
-            <button onClick={submitCheckIn} disabled={submittingCheckIn}
-              className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-4 rounded-xl text-base transition-colors">
+            <button
+              onClick={submitCheckIn}
+              disabled={submittingCheckIn || !liveHasMeals}
+              className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-4 rounded-xl text-base transition-colors"
+            >
               {submittingCheckIn ? 'Saving...' : liveWouldEarn ? '🥗 Submit & Earn +10 pts' : '📋 Submit Check-In'}
             </button>
+            {!liveHasMeals && (
+              <p className="text-gray-600 text-xs text-center mt-2">Log at least one meal to submit</p>
+            )}
           </div>
         </div>
       )}

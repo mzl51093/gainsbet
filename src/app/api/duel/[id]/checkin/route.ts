@@ -12,30 +12,6 @@ function adminClient() {
   )
 }
 
-function computeHealthScore(habits: {
-  ate_protein: boolean
-  ate_vegetables: boolean
-  drank_water: boolean
-  within_goals: boolean
-  drank_alcohol: boolean
-  ate_fried_food: boolean
-  ate_fast_food: boolean
-  ate_dessert: boolean
-  had_binge_meal: boolean
-}): number {
-  let score = 100
-  if (habits.ate_protein) score += 25
-  if (habits.ate_vegetables) score += 25
-  if (habits.drank_water) score += 25
-  if (habits.within_goals) score += 25
-  if (habits.drank_alcohol) score -= 40
-  if (habits.ate_fried_food) score -= 30
-  if (habits.ate_fast_food) score -= 40
-  if (habits.ate_dessert) score -= 15
-  if (habits.had_binge_meal) score -= 50
-  return Math.max(0, Math.min(200, score))
-}
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -66,11 +42,10 @@ export async function POST(
 
   const body = await req.json()
   const {
-    meal_description,
-    ate_protein,
-    ate_vegetables,
-    drank_water,
-    within_goals,
+    breakfast_notes,
+    lunch_notes,
+    dinner_notes,
+    snack_notes,
     drank_alcohol,
     ate_fried_food,
     ate_fast_food,
@@ -78,21 +53,15 @@ export async function POST(
     had_binge_meal,
   } = body
 
-  const habits = {
-    ate_protein: !!ate_protein,
-    ate_vegetables: !!ate_vegetables,
-    drank_water: !!drank_water,
-    within_goals: !!within_goals,
-    drank_alcohol: !!drank_alcohol,
-    ate_fried_food: !!ate_fried_food,
-    ate_fast_food: !!ate_fast_food,
-    ate_dessert: !!ate_dessert,
-    had_binge_meal: !!had_binge_meal,
-  }
+  const hasMealEntry = [breakfast_notes, lunch_notes, dinner_notes, snack_notes]
+    .some((s: string | null | undefined) => s?.trim())
 
-  const health_score = computeHealthScore(habits)
-  const earned_bonus = health_score >= 150
+  const hasDisqualifier = !!(drank_alcohol || ate_fried_food || ate_fast_food || ate_dessert || had_binge_meal)
+
+  const earned_bonus = hasMealEntry && !hasDisqualifier
   const challenge_points = earned_bonus ? 10 : 0
+  // health_score kept for DB compat: 100 = earned, 0 = not
+  const health_score = earned_bonus ? 100 : 0
 
   const { data: checkIn, error } = await admin
     .from('duel_daily_checkins')
@@ -100,8 +69,23 @@ export async function POST(
       duel_id: id,
       user_id: user.id,
       check_in_date: today,
-      meal_description: meal_description?.trim() || null,
-      ...habits,
+      meal_description: [breakfast_notes, lunch_notes, dinner_notes, snack_notes]
+        .filter(Boolean).join(' | ') || null,
+      breakfast_notes: breakfast_notes?.trim() || null,
+      lunch_notes: lunch_notes?.trim() || null,
+      dinner_notes: dinner_notes?.trim() || null,
+      snack_notes: snack_notes?.trim() || null,
+      // Positive habits not used — set false
+      ate_protein: false,
+      ate_vegetables: false,
+      drank_water: false,
+      within_goals: false,
+      // Negative habits (disqualifiers)
+      drank_alcohol: !!drank_alcohol,
+      ate_fried_food: !!ate_fried_food,
+      ate_fast_food: !!ate_fast_food,
+      ate_dessert: !!ate_dessert,
+      had_binge_meal: !!had_binge_meal,
       health_score,
       earned_bonus,
       challenge_points,
@@ -114,7 +98,7 @@ export async function POST(
     return NextResponse.json({ error: error?.message || 'Failed to save check-in' }, { status: 500 })
   }
 
-  // Notify everyone
+  // Notify everyone else
   const { data: profile } = await admin
     .from('profiles')
     .select('display_name')
@@ -124,10 +108,6 @@ export async function POST(
   const name = profile?.display_name?.split(' ')[0] || 'Someone'
   const allParticipants = [duel.competitor_a_id, duel.competitor_b_id, ...(duel.watcher_ids || [])]
 
-  const notifBody = earned_bonus
-    ? `${name} earned Healthy Day Bonus (+10 pts)! Health score: ${health_score}/200`
-    : `${name} completed check-in. Health score: ${health_score}/200. No bonus (need 150+).`
-
   await Promise.all(allParticipants
     .filter((pid: string) => pid !== user.id)
     .map(async (pid: string) => {
@@ -136,7 +116,11 @@ export async function POST(
         title: earned_bonus
           ? `🥗 ${name} earned Healthy Day Bonus!`
           : `📋 ${name} completed daily check-in`,
-        body: notifBody,
+        body: earned_bonus
+          ? `${name} logged their meals and stayed clean. +10 pts.`
+          : hasDisqualifier
+            ? `${name} checked in but had a disqualifier. No bonus.`
+            : `${name} didn't log their meals. No bonus.`,
         url: `/duel/${id}`,
       }
       await Promise.all([
@@ -146,10 +130,5 @@ export async function POST(
     })
   )
 
-  return NextResponse.json({
-    id: checkIn.id,
-    health_score,
-    earned_bonus,
-    challenge_points,
-  })
+  return NextResponse.json({ id: checkIn.id, earned_bonus, challenge_points })
 }
