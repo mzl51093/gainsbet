@@ -131,6 +131,7 @@ export default function DuelClient({
 }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<'scorecard' | 'activity' | 'weigh-in'>('scorecard')
+  const [rulesOpen, setRulesOpen] = useState(false)
   const [comments, setComments] = useState(initialComments)
   const [reactions, setReactions] = useState(initialReactions)
   const [commentText, setCommentText] = useState('')
@@ -324,6 +325,24 @@ export default function DuelClient({
               💸 Stakes: <span className="font-normal text-yellow-300">"{duel.wager}"</span>
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Rules — always visible, collapsible */}
+      {duel.rules && (
+        <div className="border-b border-gray-800">
+          <button
+            onClick={() => setRulesOpen(o => !o)}
+            className="w-full px-4 py-2.5 flex items-center justify-between bg-gray-900 hover:bg-gray-800 transition-colors"
+          >
+            <span className="text-gray-400 text-xs font-semibold">📋 Rules</span>
+            <span className="text-gray-600 text-xs">{rulesOpen ? '▲ hide' : '▼ show'}</span>
+          </button>
+          {rulesOpen && (
+            <div className="px-4 py-3 bg-gray-900 border-t border-gray-800">
+              <p className="text-gray-300 text-sm whitespace-pre-wrap">{duel.rules}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -524,14 +543,6 @@ export default function DuelClient({
                     </>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* Rules */}
-            {duel.rules && (
-              <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
-                <p className="text-gray-500 text-xs font-semibold mb-1">📋 RULES</p>
-                <p className="text-gray-400 text-sm whitespace-pre-wrap">{duel.rules}</p>
               </div>
             )}
 
