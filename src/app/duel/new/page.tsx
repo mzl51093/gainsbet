@@ -25,7 +25,9 @@ export default function NewDuelPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [startWeightA, setStartWeightA] = useState('')
+  const [targetWeightA, setTargetWeightA] = useState('')
   const [startWeightB, setStartWeightB] = useState('')
+  const [targetWeightB, setTargetWeightB] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -87,7 +89,9 @@ export default function NewDuelPage() {
           startDate,
           endDate,
           startingWeightA: startWeightA ? parseFloat(startWeightA) : null,
+          targetWeightA: targetWeightA ? parseFloat(targetWeightA) : null,
           startingWeightB: startWeightB ? parseFloat(startWeightB) : null,
+          targetWeightB: targetWeightB ? parseFloat(targetWeightB) : null,
         }),
       })
 
@@ -161,18 +165,19 @@ export default function NewDuelPage() {
               </div>
 
               {competitorAId && (
-                <div className="pl-4 flex items-center gap-2">
-                  <span className="text-gray-600 text-xs">Starting weight (optional):</span>
-                  <input
-                    type="number"
-                    value={startWeightA}
-                    onChange={e => setStartWeightA(e.target.value)}
-                    placeholder="lbs"
-                    step="0.1"
-                    min="50"
-                    max="999"
-                    className="w-24 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
-                  />
+                <div className="pl-4 flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-600 text-xs">Start:</span>
+                    <input type="number" value={startWeightA} onChange={e => setStartWeightA(e.target.value)}
+                      placeholder="lbs" step="0.1" min="50" max="999"
+                      className="w-20 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-600 text-xs">Target:</span>
+                    <input type="number" value={targetWeightA} onChange={e => setTargetWeightA(e.target.value)}
+                      placeholder="lbs" step="0.1" min="50" max="999"
+                      className="w-20 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none" />
+                  </div>
                 </div>
               )}
 
@@ -200,18 +205,19 @@ export default function NewDuelPage() {
               </div>
 
               {competitorBId && (
-                <div className="pl-4 flex items-center gap-2">
-                  <span className="text-gray-600 text-xs">Starting weight (optional):</span>
-                  <input
-                    type="number"
-                    value={startWeightB}
-                    onChange={e => setStartWeightB(e.target.value)}
-                    placeholder="lbs"
-                    step="0.1"
-                    min="50"
-                    max="999"
-                    className="w-24 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
-                  />
+                <div className="pl-4 flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-600 text-xs">Start:</span>
+                    <input type="number" value={startWeightB} onChange={e => setStartWeightB(e.target.value)}
+                      placeholder="lbs" step="0.1" min="50" max="999"
+                      className="w-20 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-600 text-xs">Target:</span>
+                    <input type="number" value={targetWeightB} onChange={e => setTargetWeightB(e.target.value)}
+                      placeholder="lbs" step="0.1" min="50" max="999"
+                      className="w-20 bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none" />
+                  </div>
                 </div>
               )}
             </div>
@@ -307,7 +313,8 @@ export default function NewDuelPage() {
             <p className="text-gray-400 text-xs font-semibold mb-2">📊 How scoring works</p>
             <ul className="text-gray-500 text-xs space-y-1">
               <li>• <span className="text-gray-300">Workout Points</span> — same as regular workouts</li>
-              <li>• <span className="text-gray-300">Weight Loss Points</span> — each 1 lb lost = 25 pts</li>
+              <li>• <span className="text-gray-300">Weight Loss Points</span> — up to 300 pts at 100% of target weight loss</li>
+              <li>• e.g. start 188, target 170 → losing 9 lbs = 50% = 150 pts</li>
               <li>• Uses lowest verified weigh-in (not current) to prevent yo-yo penalty</li>
               <li>• Total = Workout Pts + Weight Loss Pts</li>
             </ul>

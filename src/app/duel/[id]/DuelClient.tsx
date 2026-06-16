@@ -83,6 +83,8 @@ interface DuelChallenge {
   starting_weight_b?: number | null
   lowest_weight_a?: number | null
   lowest_weight_b?: number | null
+  target_weight_a?: number | null
+  target_weight_b?: number | null
   profileA?: Profile
   profileB?: Profile
   creator?: Profile
@@ -158,18 +160,24 @@ function computeScores(
   workouts: Workout[],
   startingWeight: number | null | undefined,
   lowestWeight: number | null | undefined,
+  targetWeight: number | null | undefined,
   checkIns: CheckIn[],
 ) {
   const workoutPts = workouts.reduce((s, w) => s + w.points, 0)
-  let weightLossPct = 0
+  let weightProgressPct = 0
   let weightLossPts = 0
-  if (startingWeight && lowestWeight && lowestWeight < startingWeight) {
-    weightLossPct = ((startingWeight - lowestWeight) / startingWeight) * 100
-    weightLossPts = (startingWeight - lowestWeight) * 25
+  let lbsLost = 0
+  let lbsToTarget = 0
+  if (startingWeight && targetWeight && lowestWeight && startingWeight > targetWeight) {
+    lbsToTarget = startingWeight - targetWeight
+    lbsLost = Math.max(0, startingWeight - lowestWeight)
+    const effectiveLost = Math.min(lbsLost, lbsToTarget)
+    weightProgressPct = (effectiveLost / lbsToTarget) * 100
+    weightLossPts = (weightProgressPct / 100) * 300
   }
   const healthyDayPts = checkIns.reduce((s, c) => s + c.challenge_points, 0)
   const total = workoutPts + weightLossPts + healthyDayPts
-  return { workoutPts, weightLossPct, weightLossPts, healthyDayPts, total }
+  return { workoutPts, weightProgressPct, weightLossPts, lbsLost, lbsToTarget, healthyDayPts, total }
 }
 
 function formatTimeAgo(iso: string): string {
@@ -235,8 +243,8 @@ export default function DuelClient({
   const profileA = duel.profileA
   const profileB = duel.profileB
 
-  const scoreA = computeScores(workoutsA, duel.starting_weight_a, duel.lowest_weight_a, checkInsA)
-  const scoreB = computeScores(workoutsB, duel.starting_weight_b, duel.lowest_weight_b, checkInsB)
+  const scoreA = computeScores(workoutsA, duel.starting_weight_a, duel.lowest_weight_a, duel.target_weight_a, checkInsA)
+  const scoreB = computeScores(workoutsB, duel.starting_weight_b, duel.lowest_weight_b, duel.target_weight_b, checkInsB)
 
   const today = new Date()
   const start = new Date(duel.start_date)
@@ -551,10 +559,10 @@ export default function DuelClient({
             <div className="grid grid-cols-2 gap-3">
               {[
                 { profile: profileA, score: scoreA, workouts: workoutsA, checkIns: checkInsA,
-                  startW: duel.starting_weight_a, lowW: duel.lowest_weight_a, streak: streakA },
+                  startW: duel.starting_weight_a, lowW: duel.lowest_weight_a, targetW: duel.target_weight_a, streak: streakA },
                 { profile: profileB, score: scoreB, workouts: workoutsB, checkIns: checkInsB,
-                  startW: duel.starting_weight_b, lowW: duel.lowest_weight_b, streak: streakB },
-              ].map(({ profile, score, workouts, checkIns, startW, lowW, streak }, idx) => {
+                  startW: duel.starting_weight_b, lowW: duel.lowest_weight_b, targetW: duel.target_weight_b, streak: streakB },
+              ].map(({ profile, score, workouts, checkIns, startW, lowW, targetW, streak }, idx) => {
                 const isLeader = idx === 0 ? lead > 0.5 : lead < -0.5
                 const isMe = idx === 0 ? isCompetitorA : isCompetitorB
                 const bonusDays = checkIns.filter(c => c.earned_bonus).length
@@ -587,7 +595,7 @@ export default function DuelClient({
                       <div className="flex justify-between">
                         <span className="text-gray-500">⚖️ Weight</span>
                         <span className={`font-medium ${score.weightLossPts > 0 ? 'text-green-400' : 'text-gray-600'}`}>
-                          {score.weightLossPts > 0 ? `+${score.weightLossPts.toFixed(1)}` : '—'}
+                          {score.weightLossPts > 0 ? `+${Math.round(score.weightLossPts)}` : '—'}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -608,27 +616,33 @@ export default function DuelClient({
                       )}
                     </div>
 
-                    {(startW || lowW) && (
-                      <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-1 text-xs">
-                        {startW && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Start</span>
-                            <span className="text-gray-400">{startW} lbs</span>
-                          </div>
-                        )}
-                        {lowW && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Lowest</span>
-                            <span className="text-green-400">{lowW} lbs</span>
-                          </div>
-                        )}
-                        {score.weightLossPct > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Lost</span>
-                            <span className="text-green-400">
-                              {(startW! - lowW!).toFixed(1)} lbs
-                            </span>
-                          </div>
+                    {(startW || targetW) && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-1.5 text-xs">
+                        {startW && targetW && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Start → Target</span>
+                              <span className="text-gray-400">{startW} → {targetW} lbs</span>
+                            </div>
+                            {score.lbsLost > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Lost so far</span>
+                                <span className="text-green-400">{score.lbsLost.toFixed(1)} lbs</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Progress</span>
+                              <span className={score.weightProgressPct >= 100 ? 'text-green-400 font-bold' : 'text-yellow-400'}>
+                                {score.weightProgressPct.toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1">
+                              <div
+                                className="h-full bg-green-500 rounded-full transition-all"
+                                style={{ width: `${Math.min(score.weightProgressPct, 100)}%` }}
+                              />
+                            </div>
+                          </>
                         )}
                       </div>
                     )}
@@ -687,7 +701,6 @@ export default function DuelClient({
                       </p>
                       <p className="text-gray-600 text-xs">
                         That's <span className="text-yellow-400">{((Math.abs(projLead) + 1) / daysLeft).toFixed(1)} workout pts/day</span>
-                        {' '}or <span className="text-blue-400">{((Math.abs(projLead) + 1) / 25).toFixed(1)} lbs lost</span>
                         {' '}or <span className="text-green-400">{Math.ceil((Math.abs(projLead) + 1) / 10)} more healthy days</span>
                       </p>
                     </div>

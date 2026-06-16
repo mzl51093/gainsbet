@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
     startDate,
     endDate,
     startingWeightA,
+    targetWeightA,
     startingWeightB,
+    targetWeightB,
   } = body
 
   if (!name?.trim() || !competitorAId || !competitorBId || !startDate || !endDate) {
@@ -55,7 +57,9 @@ export async function POST(req: NextRequest) {
       start_date: startDate,
       end_date: endDate,
       starting_weight_a: startingWeightA || null,
+      target_weight_a: targetWeightA || null,
       starting_weight_b: startingWeightB || null,
+      target_weight_b: targetWeightB || null,
       lowest_weight_a: startingWeightA || null,
       lowest_weight_b: startingWeightB || null,
     })
