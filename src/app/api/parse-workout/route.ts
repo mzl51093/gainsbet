@@ -4,7 +4,33 @@ import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const VALID_TYPES = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
+const TYPE_ALIASES: Record<string, WorkoutType> = {
+  yoga: 'flexibility',
+  pilates: 'flexibility',
+  stretching: 'flexibility',
+  stretch: 'flexibility',
+  jog: 'running',
+  jogging: 'running',
+  run: 'running',
+  bike: 'cycling',
+  biking: 'cycling',
+  spin: 'cycling',
+  lifting: 'strength',
+  weights: 'strength',
+  crossfit: 'hiit',
+  circuit: 'hiit',
+  walk: 'walking',
+  walking: 'walking',
+  hike: 'walking',
+  hiking: 'walking',
+  swim: 'swimming',
+  basketball: 'sports',
+  tennis: 'sports',
+  pickleball: 'sports',
+  soccer: 'sports',
+  volleyball: 'sports',
+}
+
 
 // ─── AI prompt ────────────────────────────────────────────────────────────────
 // AI assesses actual effort level and returns pts_per_hour directly.
@@ -121,9 +147,11 @@ export async function POST(request: Request) {
       return NextResponse.json(parsed)
     }
 
-    const workoutType: WorkoutType = VALID_TYPES.includes(parsed.workout_type)
-      ? parsed.workout_type
-      : 'other'
+    const rawType = (parsed.workout_type || '').toLowerCase()
+    const VALID_TYPES_ARR = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
+    const workoutType: WorkoutType = VALID_TYPES_ARR.includes(rawType as WorkoutType)
+      ? rawType as WorkoutType
+      : (TYPE_ALIASES[rawType] ?? 'other')
 
     const durationMinutes = Math.max(10, Math.min(480, Math.round(parsed.duration_minutes || 45)))
     const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || 7))
