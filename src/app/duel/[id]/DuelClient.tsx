@@ -67,6 +67,17 @@ interface Reaction {
   emoji: string
 }
 
+interface WeeklyPhoto {
+  id: string
+  user_id: string
+  duel_id: string
+  check_in_week: string
+  front_photo_url?: string | null
+  side_photo_url?: string | null
+  notes?: string | null
+  submitted_at: string
+}
+
 interface DuelChallenge {
   id: string
   name: string
@@ -97,6 +108,7 @@ interface Props {
   weighIns: WeighIn[]
   checkInsA: CheckIn[]
   checkInsB: CheckIn[]
+  weeklyPhotos: WeeklyPhoto[]
   comments: Comment[]
   reactions: Reaction[]
   watcherProfiles: Profile[]
@@ -199,6 +211,7 @@ export default function DuelClient({
   weighIns,
   checkInsA,
   checkInsB,
+  weeklyPhotos,
   comments: initialComments,
   reactions: initialReactions,
   watcherProfiles,
@@ -233,6 +246,33 @@ export default function DuelClient({
   const [submittingWeighIn, setSubmittingWeighIn] = useState(false)
   const [weighInError, setWeighInError] = useState('')
   const weighPhotoRef = useRef<HTMLInputElement>(null)
+
+  // Edit weights state
+  const [editStarting, setEditStarting] = useState(
+    currentUserId === duel.competitor_a_id
+      ? String(duel.starting_weight_a || '')
+      : String(duel.starting_weight_b || '')
+  )
+  const [editTarget, setEditTarget] = useState(
+    currentUserId === duel.competitor_a_id
+      ? String(duel.target_weight_a || '')
+      : String(duel.target_weight_b || '')
+  )
+  const [savingWeights, setSavingWeights] = useState(false)
+  const [weightsError, setWeightsError] = useState('')
+  const [weightsSuccess, setWeightsSuccess] = useState(false)
+
+  // Body check-in state
+  const [frontPhoto, setFrontPhoto] = useState<File | null>(null)
+  const [sidePhoto, setSidePhoto] = useState<File | null>(null)
+  const [frontPreview, setFrontPreview] = useState<string | null>(null)
+  const [sidePreview, setSidePreview] = useState<string | null>(null)
+  const [bodyNotes, setBodyNotes] = useState('')
+  const [submittingBody, setSubmittingBody] = useState(false)
+  const [bodyError, setBodyError] = useState('')
+  const [bodySuccess, setBodySuccess] = useState(false)
+  const frontPhotoRef = useRef<HTMLInputElement>(null)
+  const sidePhotoRef = useRef<HTMLInputElement>(null)
 
   const isCompetitorA = currentUserId === duel.competitor_a_id
   const isCompetitorB = currentUserId === duel.competitor_b_id
@@ -407,6 +447,68 @@ export default function DuelClient({
     reader.readAsDataURL(file)
   }
 
+  async function submitUpdateWeights() {
+    setSavingWeights(true)
+    setWeightsError('')
+    setWeightsSuccess(false)
+    const res = await fetch(`/api/duel/${duelId}/update-weights`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startingWeight: editStarting ? Number(editStarting) : null,
+        targetWeight: editTarget ? Number(editTarget) : null,
+      }),
+    })
+    setSavingWeights(false)
+    if (res.ok) {
+      setWeightsSuccess(true)
+      router.refresh()
+    } else {
+      const d = await res.json()
+      setWeightsError(d.error || 'Failed to save')
+    }
+  }
+
+  function handleFrontPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFrontPhoto(file)
+    const reader = new FileReader()
+    reader.onload = () => setFrontPreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function handleSidePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSidePhoto(file)
+    const reader = new FileReader()
+    reader.onload = () => setSidePreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  async function submitBodyCheckIn() {
+    if (!frontPhoto || !sidePhoto) { setBodyError('Both front and side photos required'); return }
+    setSubmittingBody(true)
+    setBodyError('')
+    const fd = new FormData()
+    fd.set('front', frontPhoto)
+    fd.set('side', sidePhoto)
+    if (bodyNotes.trim()) fd.set('notes', bodyNotes.trim())
+    const res = await fetch(`/api/duel/${duelId}/body-checkin`, { method: 'POST', body: fd })
+    setSubmittingBody(false)
+    if (res.ok) {
+      setBodySuccess(true)
+      setFrontPhoto(null); setSidePhoto(null)
+      setFrontPreview(null); setSidePreview(null)
+      setBodyNotes('')
+      router.refresh()
+    } else {
+      const d = await res.json()
+      setBodyError(d.error || 'Failed to submit')
+    }
+  }
+
   // Combined activity feed
   const activityItems = [
     ...workoutsA.map(w => ({ ...w, type: 'workout' as const, competitorId: duel.competitor_a_id, profile: profileA })),
@@ -414,9 +516,10 @@ export default function DuelClient({
     ...weighIns.map(w => ({ ...w, type: 'weigh_in' as const, profile: w.user_id === duel.competitor_a_id ? profileA : profileB })),
     ...checkInsA.map(c => ({ ...c, type: 'checkin' as const, profile: profileA })),
     ...checkInsB.map(c => ({ ...c, type: 'checkin' as const, profile: profileB })),
+    ...weeklyPhotos.map(p => ({ ...p, type: 'body_photo' as const, profile: p.user_id === duel.competitor_a_id ? profileA : profileB })),
   ].sort((a, b) => {
-    const tA = 'logged_at' in a ? a.logged_at : 'weighed_at' in a ? (a as any).weighed_at : (a as any).created_at
-    const tB = 'logged_at' in b ? b.logged_at : 'weighed_at' in b ? (b as any).weighed_at : (b as any).created_at
+    const tA = 'logged_at' in a ? a.logged_at : 'weighed_at' in a ? (a as any).weighed_at : 'submitted_at' in a ? (a as any).submitted_at : (a as any).created_at
+    const tB = 'logged_at' in b ? b.logged_at : 'weighed_at' in b ? (b as any).weighed_at : 'submitted_at' in b ? (b as any).submitted_at : (b as any).created_at
     return new Date(tB).getTime() - new Date(tA).getTime()
   })
 
@@ -819,6 +922,47 @@ export default function DuelClient({
                 )
               }
 
+              if (item.type === 'body_photo') {
+                const bp = item as WeeklyPhoto & { type: 'body_photo'; profile?: Profile }
+                return (
+                  <div key={`bp-${bp.id}`} className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">📸</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className="text-white text-sm font-semibold">{bp.profile?.display_name?.split(' ')[0]}</span>
+                          <span className="text-gray-400 text-xs">weekly body check-in · week of {bp.check_in_week}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          {bp.front_photo_url && (
+                            <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
+                              target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
+                                className="w-20 h-28 rounded-xl object-cover border border-gray-700"
+                                alt="front"
+                              />
+                            </a>
+                          )}
+                          {bp.side_photo_url && (
+                            <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
+                              target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
+                                className="w-20 h-28 rounded-xl object-cover border border-gray-700"
+                                alt="side"
+                              />
+                            </a>
+                          )}
+                        </div>
+                        {bp.notes && <p className="text-gray-500 text-xs mt-2 italic">"{bp.notes}"</p>}
+                        <p className="text-gray-600 text-xs mt-1">{formatTimeAgo(bp.submitted_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
               // checkin
               const ci = item as CheckIn & { type: 'checkin'; profile?: Profile }
               return (
@@ -862,6 +1006,152 @@ export default function DuelClient({
         {/* ── WEIGH-IN TAB ── */}
         {tab === 'weigh-in' && isCompetitor && (
           <div className="space-y-4">
+
+            {/* Edit Starting / Target Weight */}
+            <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-3">
+              <h3 className="text-white font-semibold text-sm">⚖️ Edit Weight Goals</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1.5">Starting Weight (lbs)</label>
+                  <input
+                    type="number" value={editStarting} onChange={e => setEditStarting(e.target.value)}
+                    placeholder="e.g. 188" step="0.1" min="50" max="999"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1.5">Target Weight (lbs)</label>
+                  <input
+                    type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)}
+                    placeholder="e.g. 170" step="0.1" min="50" max="999"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              {editStarting && editTarget && Number(editTarget) >= Number(editStarting) && (
+                <p className="text-yellow-500 text-xs">Target must be less than starting weight</p>
+              )}
+              {weightsError && <p className="text-red-400 text-xs">{weightsError}</p>}
+              {weightsSuccess && <p className="text-green-400 text-xs">✓ Saved! Scores updated.</p>}
+              <button
+                onClick={submitUpdateWeights}
+                disabled={savingWeights || !editStarting || !editTarget || Number(editTarget) >= Number(editStarting)}
+                className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors"
+              >
+                {savingWeights ? 'Saving...' : 'Save Weight Goals'}
+              </button>
+              <p className="text-gray-600 text-xs">
+                Weight loss pts = (lbs lost / lbs to target) × 300 max
+              </p>
+            </div>
+
+            {/* Weekly Body Check-In */}
+            <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
+              <div>
+                <h3 className="text-white font-semibold text-sm">📸 Weekly Body Check-In</h3>
+                <p className="text-gray-500 text-xs mt-1">Front + side photos, once per week. One submission per week — re-uploading replaces the current week's photos.</p>
+              </div>
+
+              {bodySuccess && (
+                <div className="bg-green-950/30 border border-green-700/50 rounded-xl px-4 py-3">
+                  <p className="text-green-400 text-sm font-semibold">✓ Body check-in submitted!</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Front photo */}
+                <div>
+                  <p className="text-gray-400 text-xs mb-2">Front view *</p>
+                  <input ref={frontPhotoRef} type="file" accept="image/*" capture="environment"
+                    onChange={handleFrontPhotoChange} className="hidden" />
+                  {frontPreview ? (
+                    <div className="relative">
+                      <img src={frontPreview} className="w-full aspect-[3/4] rounded-xl object-cover" alt="front" />
+                      <button type="button" onClick={() => { setFrontPhoto(null); setFrontPreview(null) }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs font-bold flex items-center justify-center">×</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => frontPhotoRef.current?.click()}
+                      className="w-full aspect-[3/4] bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center gap-1 text-gray-500 hover:bg-gray-700 transition-colors">
+                      <span className="text-3xl">📷</span>
+                      <span className="text-xs">Front</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Side photo */}
+                <div>
+                  <p className="text-gray-400 text-xs mb-2">Side view *</p>
+                  <input ref={sidePhotoRef} type="file" accept="image/*" capture="environment"
+                    onChange={handleSidePhotoChange} className="hidden" />
+                  {sidePreview ? (
+                    <div className="relative">
+                      <img src={sidePreview} className="w-full aspect-[3/4] rounded-xl object-cover" alt="side" />
+                      <button type="button" onClick={() => { setSidePhoto(null); setSidePreview(null) }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs font-bold flex items-center justify-center">×</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => sidePhotoRef.current?.click()}
+                      className="w-full aspect-[3/4] bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center gap-1 text-gray-500 hover:bg-gray-700 transition-colors">
+                      <span className="text-3xl">📷</span>
+                      <span className="text-xs">Side</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-xs block mb-1.5">Notes (optional)</label>
+                <input type="text" value={bodyNotes} onChange={e => setBodyNotes(e.target.value)}
+                  placeholder="e.g. Morning, fasted"
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none" />
+              </div>
+
+              {bodyError && <p className="text-red-400 text-sm">{bodyError}</p>}
+              <button
+                onClick={submitBodyCheckIn}
+                disabled={submittingBody || !frontPhoto || !sidePhoto}
+                className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-3 rounded-xl text-sm transition-colors"
+              >
+                {submittingBody ? 'Uploading...' : '📸 Submit Body Check-In'}
+              </button>
+            </div>
+
+            {/* Previous body check-ins */}
+            {weeklyPhotos.filter(p => p.user_id === currentUserId).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-gray-500 text-xs font-semibold">YOUR BODY CHECK-INS</p>
+                {weeklyPhotos.filter(p => p.user_id === currentUserId).map(bp => (
+                  <div key={bp.id} className="bg-gray-900 rounded-xl p-3 border border-gray-800">
+                    <p className="text-white text-xs font-medium mb-2">Week of {bp.check_in_week}</p>
+                    <div className="flex gap-2">
+                      {bp.front_photo_url && (
+                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
+                          target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
+                            className="w-16 h-20 rounded-lg object-cover border border-gray-700"
+                            alt="front"
+                          />
+                        </a>
+                      )}
+                      {bp.side_photo_url && (
+                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
+                          target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
+                            className="w-16 h-20 rounded-lg object-cover border border-gray-700"
+                            alt="side"
+                          />
+                        </a>
+                      )}
+                    </div>
+                    {bp.notes && <p className="text-gray-600 text-xs mt-1 italic">"{bp.notes}"</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
               <h3 className="text-white font-semibold text-sm">Log Your Weight</h3>
               <div>
