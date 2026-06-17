@@ -37,6 +37,10 @@ interface CheckIn {
   user_id: string
   check_in_date: string
   meal_description?: string | null
+  breakfast_notes?: string | null
+  lunch_notes?: string | null
+  dinner_notes?: string | null
+  snack_notes?: string | null
   ate_protein: boolean
   ate_vegetables: boolean
   drank_water: boolean
@@ -248,6 +252,9 @@ export default function DuelClient({
   const [submittingWeighIn, setSubmittingWeighIn] = useState(false)
   const [weighInError, setWeighInError] = useState('')
   const weighPhotoRef = useRef<HTMLInputElement>(null)
+
+  // Expanded check-in detail
+  const [expandedCheckIn, setExpandedCheckIn] = useState<string | null>(null)
 
   // Edit weights state
   const [editStarting, setEditStarting] = useState(
@@ -975,10 +982,23 @@ export default function DuelClient({
 
               // checkin
               const ci = item as CheckIn & { type: 'checkin'; profile?: Profile }
+              const isExpanded = expandedCheckIn === ci.id
+              const disqualifierLabels = [
+                ci.drank_alcohol && 'Drank alcohol',
+                ci.ate_fried_food && 'Ate fried food',
+                ci.ate_fast_food && 'Ate fast food',
+                ci.ate_dessert && 'Ate dessert/candy',
+                ci.had_cheat_meal && 'Cheat meal',
+                ci.had_binge_meal && 'Binge meal',
+              ].filter(Boolean) as string[]
               return (
-                <div key={`ci-${ci.id}`} className={`rounded-2xl p-4 border ${
-                  ci.earned_bonus ? 'bg-green-950/20 border-green-800/50' : 'bg-gray-900 border-gray-800'
-                }`}>
+                <div
+                  key={`ci-${ci.id}`}
+                  onClick={() => setExpandedCheckIn(isExpanded ? null : ci.id)}
+                  className={`rounded-2xl p-4 border cursor-pointer transition-colors ${
+                    ci.earned_bonus ? 'bg-green-950/20 border-green-800/50' : 'bg-gray-900 border-gray-800'
+                  }`}
+                >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🥗</span>
                     <div className="flex-1 min-w-0">
@@ -992,7 +1012,7 @@ export default function DuelClient({
                           : `Missed bonus (${ci.health_score}/200)`
                         } · {ci.check_in_date}
                       </p>
-                      {ci.meal_description && (
+                      {!isExpanded && ci.meal_description && (
                         <p className="text-gray-500 text-xs mt-1 italic truncate">"{ci.meal_description}"</p>
                       )}
                     </div>
@@ -1007,6 +1027,31 @@ export default function DuelClient({
                       )}
                     </div>
                   </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
+                      {[
+                        { label: '🌅 Breakfast', value: ci.breakfast_notes },
+                        { label: '☀️ Lunch', value: ci.lunch_notes },
+                        { label: '🌙 Dinner', value: ci.dinner_notes },
+                        { label: '🍎 Snacks', value: ci.snack_notes },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <p className="text-gray-500 text-xs">{label}</p>
+                          <p className="text-gray-300 text-sm">{value || '—'}</p>
+                        </div>
+                      ))}
+                      {disqualifierLabels.length > 0 && (
+                        <div className="mt-1">
+                          <p className="text-red-400 text-xs font-semibold">❌ Disqualifiers</p>
+                          <p className="text-red-300 text-sm">{disqualifierLabels.join(' · ')}</p>
+                        </div>
+                      )}
+                      {disqualifierLabels.length === 0 && ci.earned_bonus && (
+                        <p className="text-green-400 text-xs">✓ No disqualifiers — clean day!</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
