@@ -45,6 +45,7 @@ interface CheckIn {
   ate_fried_food: boolean
   ate_fast_food: boolean
   ate_dessert: boolean
+  had_cheat_meal: boolean
   had_binge_meal: boolean
   health_score: number
   earned_bonus: boolean
@@ -132,6 +133,7 @@ const DISQUALIFIERS = [
   { key: 'ate_fried_food', label: 'Ate fried food' },
   { key: 'ate_fast_food', label: 'Ate fast food' },
   { key: 'ate_dessert', label: 'Ate dessert/cookies/candy' },
+  { key: 'had_cheat_meal', label: 'Had a cheat meal (pizza, pasta, hot dogs, chips, etc.)' },
   { key: 'had_binge_meal', label: 'Had a binge meal' },
 ] as const
 

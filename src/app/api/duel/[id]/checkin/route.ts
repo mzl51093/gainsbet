@@ -50,13 +50,14 @@ export async function POST(
     ate_fried_food,
     ate_fast_food,
     ate_dessert,
+    had_cheat_meal,
     had_binge_meal,
   } = body
 
   const hasMealEntry = [breakfast_notes, lunch_notes, dinner_notes, snack_notes]
     .every((s: string | null | undefined) => s?.trim())
 
-  const hasDisqualifier = !!(drank_alcohol || ate_fried_food || ate_fast_food || ate_dessert || had_binge_meal)
+  const hasDisqualifier = !!(drank_alcohol || ate_fried_food || ate_fast_food || ate_dessert || had_cheat_meal || had_binge_meal)
 
   const earned_bonus = hasMealEntry && !hasDisqualifier
   const challenge_points = earned_bonus ? 10 : 0
@@ -85,6 +86,7 @@ export async function POST(
       ate_fried_food: !!ate_fried_food,
       ate_fast_food: !!ate_fast_food,
       ate_dessert: !!ate_dessert,
+      had_cheat_meal: !!had_cheat_meal,
       had_binge_meal: !!had_binge_meal,
       health_score,
       earned_bonus,
