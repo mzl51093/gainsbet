@@ -138,10 +138,10 @@ export default function RulesPage() {
                 {[
                   { emoji: '🏋️', desc: '45-min lifting session', calc: '12 × 0.75', result: 9, note: null },
                   { emoji: '🏃', desc: '30-min run', calc: '12 × 0.5', result: 6, note: null },
-                  { emoji: '⚡', desc: '20-min HIIT (morning)', calc: '16 × 0.33 × 1.5', result: 8, note: '🌅 early bird' },
+                  { emoji: '⚡', desc: '20-min HIIT', calc: '16 × 0.33', result: 5, note: null },
                   { emoji: '🚴', desc: '1-hour spin class', calc: '10 × 1.0', result: 10, note: null },
                   { emoji: '🧘', desc: '60-min yoga', calc: '5 × 1.0', result: 5, note: null },
-                  { emoji: '🏃', desc: '1-hour run (morning)', calc: '12 × 1.0 × 1.5', result: 18, note: '🌅 early bird' },
+                  { emoji: '🏃', desc: '1-hour run', calc: '12 × 1.0', result: 12, note: null },
                 ].map(ex => (
                   <div key={ex.desc} className="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2.5">
                     <div>

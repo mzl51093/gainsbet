@@ -3,7 +3,7 @@
 import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WORKOUT_TYPES, calculatePoints, getPtsPerHour, getEarlyBirdMultiplier } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const PROOF_TYPES = [
@@ -74,9 +74,7 @@ function LogWorkoutInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const earlyBird = getEarlyBirdMultiplier()
-  const isEarlyBird = earlyBird > 1
-  const detailedPoints = calculatePoints(workoutType, duration, earlyBird)
+  const detailedPoints = calculatePoints(workoutType, duration)
   const ptsPerHour = getPtsPerHour(workoutType)
 
   function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -129,7 +127,7 @@ function LogWorkoutInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to analyze')
-      setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes, earlyBird) })
+      setParsed({ ...data, points: calculatePoints(data.workout_type, data.duration_minutes) })
 
       // Auto-set proof to the scanned image (replace any existing proof)
       setProofFiles([scanFile])
@@ -163,11 +161,9 @@ function LogWorkoutInner() {
       }
 
       setClarification(null)
-      // Use AI's pts_per_hour × duration, then apply early bird on top
       const pph = data.pts_per_hour || 7
       const basePoints = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
-      const finalPoints = Math.round(basePoints * earlyBird)
-      setParsed({ ...data, pts_per_hour: pph, points: finalPoints })
+      setParsed({ ...data, pts_per_hour: pph, points: basePoints })
     } catch (err: any) {
       setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
     } finally {
@@ -260,17 +256,6 @@ function LogWorkoutInner() {
             <div>
               <p className="text-purple-300 font-bold text-sm">Draft Competition Workout</p>
               <p className="text-purple-600 text-xs">Upload proof for auto-approval, or submit for team vote</p>
-            </div>
-          </div>
-        )}
-
-        {/* Early Bird Banner */}
-        {isEarlyBird && (
-          <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-2xl p-3 flex items-center gap-3">
-            <span className="text-2xl">🌅</span>
-            <div>
-              <p className="text-yellow-300 font-bold text-sm">Early Bird Special!</p>
-              <p className="text-yellow-600 text-xs">Log now for 1.5x points — expires at 9 AM</p>
             </div>
           </div>
         )}
@@ -454,7 +439,7 @@ function LogWorkoutInner() {
                     <div className="bg-gray-800 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold text-green-400">{parsed.points}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {parsed.pts_per_hour} pts/hr{isEarlyBird ? ' 🌅' : ''}
+                        {parsed.pts_per_hour} pts/hr
                       </p>
                     </div>
                   </div>
@@ -467,7 +452,7 @@ function LogWorkoutInner() {
                         value={parsed.workout_type}
                         onChange={e => {
                           const newType = e.target.value as WorkoutType
-                          setParsed({ ...parsed, workout_type: newType, points: Math.round(parsed.pts_per_hour * (parsed.duration_minutes / 60) * earlyBird) })
+                          setParsed({ ...parsed, workout_type: newType, points: Math.round(parsed.pts_per_hour * (parsed.duration_minutes / 60)) })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       >
@@ -485,11 +470,11 @@ function LogWorkoutInner() {
                           const raw = e.target.value
                           const d = parseInt(raw, 10)
                           if (!raw || isNaN(d) || d < 1) return
-                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.max(1, Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60) * earlyBird)) })
+                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.max(1, Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60))) })
                         }}
                         onBlur={() => {
                           const d = Math.max(10, Math.min(480, parsed.duration_minutes))
-                          setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60) * earlyBird)) })
+                          setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60))) })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
                       />
@@ -498,7 +483,7 @@ function LogWorkoutInner() {
                           <button
                             key={d}
                             type="button"
-                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60) * earlyBird)) })}
+                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60))) })}
                             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               parsed.duration_minutes === d
                                 ? 'bg-green-500 text-black'
