@@ -3,6 +3,27 @@ export function getTodayEastern(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
+/** Returns the current hour (0-23) in Eastern time */
+export function getEasternHour(): number {
+  return Number(
+    new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false })
+  )
+}
+
+/**
+ * Returns the effective check-in date: before noon ET, credits yesterday.
+ * At noon or later, credits today.
+ */
+export function getCheckinDateEastern(): string {
+  const hour = getEasternHour()
+  if (hour < 12) {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  }
+  return getTodayEastern()
+}
+
 /** Returns the Eastern UTC offset in hours (e.g., -4 for EDT, -5 for EST) */
 export function getEasternOffsetHours(): number {
   // Use UTC noon to avoid midnight rollover issues

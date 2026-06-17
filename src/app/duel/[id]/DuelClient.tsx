@@ -290,12 +290,17 @@ export default function DuelClient({
   const start = new Date(duel.start_date)
   const end = new Date(duel.end_date)
   const todayStr = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const easternHour = Number(today.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }))
+  const isBeforeNoon = easternHour < 12
+  const checkinDateStr = isBeforeNoon
+    ? (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) })()
+    : todayStr
   const daysTotal = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1)
   const daysElapsed = Math.max(1, Math.ceil((today.getTime() - start.getTime()) / 86400000))
   const daysLeft = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86400000))
   const isActive = duel.status === 'active' && daysLeft > 0
 
-  const myTodayCheckIn = myCheckIns.find(c => c.check_in_date === todayStr)
+  const myTodayCheckIn = myCheckIns.find(c => c.check_in_date === checkinDateStr)
   const alreadyCheckedIn = !!myTodayCheckIn
   const myStreak = computeStreak(myCheckIns)
   const myTotalBonusPts = myCheckIns.reduce((s, c) => s + c.challenge_points, 0)
@@ -619,9 +624,12 @@ export default function DuelClient({
               } p-4`}>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="text-white font-semibold text-sm">🥗 Healthy Day</p>
+                    <p className="text-white font-semibold text-sm">🥗 Healthy Day{isBeforeNoon && !alreadyCheckedIn ? ' (yesterday)' : ''}</p>
                     <p className="text-gray-500 text-xs mt-0.5">
-                      {myStreak > 0 ? `🔥 ${myStreak}-day streak · ` : ''}{myBonusDays} bonus days · +{myTotalBonusPts} pts total
+                      {isBeforeNoon && !alreadyCheckedIn
+                        ? `Morning grace period — log yesterday's meals before noon · `
+                        : ''
+                      }{myStreak > 0 ? `🔥 ${myStreak}-day streak · ` : ''}{myBonusDays} bonus days · +{myTotalBonusPts} pts total
                     </p>
                   </div>
                   {alreadyCheckedIn ? (
@@ -1230,7 +1238,9 @@ export default function DuelClient({
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-bold text-lg">🥗 Daily Check-In</h2>
+              <h2 className="text-white font-bold text-lg">
+                🥗 Daily Check-In {isBeforeNoon && <span className="text-sm text-gray-400 font-normal">for {checkinDateStr}</span>}
+              </h2>
               <button onClick={() => setShowCheckIn(false)} className="text-gray-500 text-sm">Cancel</button>
             </div>
 

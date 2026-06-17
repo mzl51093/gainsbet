@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendPushToUser } from '@/lib/push'
 import { saveNotification } from '@/lib/notifications-db'
-import { getTodayEastern } from '@/lib/timezone'
+import { getCheckinDateEastern } from '@/lib/timezone'
 
 function adminClient() {
   return createAdminClient(
@@ -35,8 +35,8 @@ export async function POST(
   const isCompetitor = user.id === duel.competitor_a_id || user.id === duel.competitor_b_id
   if (!isCompetitor) return NextResponse.json({ error: 'Only competitors can check in' }, { status: 403 })
 
-  const today = getTodayEastern()
-  if (today < duel.start_date || today > duel.end_date) {
+  const checkinDate = getCheckinDateEastern()
+  if (checkinDate < duel.start_date || checkinDate > duel.end_date) {
     return NextResponse.json({ error: 'Check-in only available during the duel window' }, { status: 400 })
   }
 
@@ -68,7 +68,7 @@ export async function POST(
     .upsert({
       duel_id: id,
       user_id: user.id,
-      check_in_date: today,
+      check_in_date: checkinDate,
       meal_description: [breakfast_notes, lunch_notes, dinner_notes, snack_notes]
         .filter(Boolean).join(' | ') || null,
       breakfast_notes: breakfast_notes?.trim() || null,
@@ -130,5 +130,5 @@ export async function POST(
     })
   )
 
-  return NextResponse.json({ id: checkIn.id, earned_bonus, challenge_points })
+  return NextResponse.json({ id: checkIn.id, earned_bonus, challenge_points, check_in_date: checkinDate })
 }
