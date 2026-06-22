@@ -462,18 +462,11 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
             <div className="space-y-3">
               {recentTen.map(workout => {
                 const wType = WORKOUT_TYPES.find(t => t.value === workout.workout_type)
-                const loggedHour = new Date(workout.logged_at).getHours()
-                const earlyBird = loggedHour >= 5 && loggedHour < 9
                 return (
                   <div key={workout.id} className="flex items-center gap-3 py-2 border-b border-gray-800 last:border-0">
                     <span className="text-xl w-7 text-center flex-shrink-0">{wType?.emoji || '💪'}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-white text-sm font-medium">{wType?.label || workout.workout_type}</p>
-                        {earlyBird && (
-                          <span className="text-xs bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded-md">🌅 early</span>
-                        )}
-                      </div>
+                      <p className="text-white text-sm font-medium">{wType?.label || workout.workout_type}</p>
                       <p className="text-gray-500 text-xs">{workout.duration_minutes}min · {formatRelativeTime(workout.logged_at)}</p>
                     </div>
                     <span className="text-green-400 font-bold text-sm flex-shrink-0">+{workout.points}</span>
