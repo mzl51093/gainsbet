@@ -62,6 +62,8 @@ interface Comment {
   user_id: string
   body: string
   created_at: string
+  activity_type?: string | null
+  activity_id?: string | null
   profiles?: Profile
 }
 
@@ -255,6 +257,8 @@ export default function DuelClient({
 
   // Expanded check-in detail
   const [expandedCheckIn, setExpandedCheckIn] = useState<string | null>(null)
+  const [activityCommentText, setActivityCommentText] = useState<Record<string, string>>({})
+  const [postingActivityComment, setPostingActivityComment] = useState<string | null>(null)
 
   // Edit weights state
   const [editStarting, setEditStarting] = useState(
@@ -406,6 +410,25 @@ export default function DuelClient({
       if (res.ok) router.refresh()
     } finally {
       setPostingComment(false)
+    }
+  }
+
+  async function postActivityComment(activityType: string, activityId: string) {
+    const text = activityCommentText[activityId]?.trim()
+    if (!text || postingActivityComment) return
+    setPostingActivityComment(activityId)
+    try {
+      const res = await fetch(`/api/duel/${duelId}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: text, activityType, activityId }),
+      })
+      if (res.ok) {
+        setActivityCommentText(prev => ({ ...prev, [activityId]: '' }))
+        router.refresh()
+      }
+    } finally {
+      setPostingActivityComment(null)
     }
   }
 
@@ -983,6 +1006,7 @@ export default function DuelClient({
               // checkin
               const ci = item as CheckIn & { type: 'checkin'; profile?: Profile }
               const isExpanded = expandedCheckIn === ci.id
+              const linkedCommentCount = comments.filter(c => c.activity_id === ci.id).length
               const disqualifierLabels = [
                 ci.drank_alcohol && 'Drank alcohol',
                 ci.ate_fried_food && 'Ate fried food',
@@ -1012,8 +1036,12 @@ export default function DuelClient({
                           : `Missed bonus (${ci.health_score}/200)`
                         } · {ci.check_in_date}
                       </p>
-                      {!isExpanded && ci.meal_description && (
-                        <p className="text-gray-500 text-xs mt-1 italic truncate">"{ci.meal_description}"</p>
+                      {!isExpanded && (
+                        <p className="text-gray-500 text-xs mt-1 truncate">
+                          {ci.meal_description && <span className="italic">"{ci.meal_description}"</span>}
+                          {linkedCommentCount > 0 && <span className="text-gray-600 ml-1">💬 {linkedCommentCount}</span>}
+                          {!ci.meal_description && linkedCommentCount === 0 && <span>Tap to view details</span>}
+                        </p>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -1029,7 +1057,7 @@ export default function DuelClient({
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
+                    <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2" onClick={e => e.stopPropagation()}>
                       {[
                         { label: '🌅 Breakfast', value: ci.breakfast_notes },
                         { label: '☀️ Lunch', value: ci.lunch_notes },
@@ -1050,6 +1078,43 @@ export default function DuelClient({
                       {disqualifierLabels.length === 0 && ci.earned_bonus && (
                         <p className="text-green-400 text-xs">✓ No disqualifiers — clean day!</p>
                       )}
+
+                      {/* Comments on this check-in */}
+                      {(() => {
+                        const linked = comments.filter(c => c.activity_id === ci.id)
+                        return linked.length > 0 ? (
+                          <div className="mt-2 pt-2 border-t border-gray-700/30 space-y-1.5">
+                            {linked.map(c => (
+                              <div key={c.id} className="flex gap-2">
+                                <span className="text-white text-xs font-semibold flex-shrink-0">
+                                  {c.profiles?.display_name?.split(' ')[0] || '?'}
+                                </span>
+                                <span className="text-gray-300 text-xs">{c.body}</span>
+                                <span className="text-gray-600 text-xs flex-shrink-0">{formatTimeAgo(c.created_at)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null
+                      })()}
+
+                      {/* Inline comment input */}
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-gray-700/30">
+                        <input
+                          type="text"
+                          value={activityCommentText[ci.id] || ''}
+                          onChange={e => setActivityCommentText(prev => ({ ...prev, [ci.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && postActivityComment('checkin', ci.id)}
+                          placeholder="Add a comment..."
+                          className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 text-xs placeholder-gray-600 border border-gray-700 focus:border-green-500 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => postActivityComment('checkin', ci.id)}
+                          disabled={postingActivityComment === ci.id || !activityCommentText[ci.id]?.trim()}
+                          className="bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black font-bold px-3 py-2 rounded-lg text-xs transition-colors"
+                        >
+                          {postingActivityComment === ci.id ? '...' : '→'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -20,7 +20,7 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { body: commentBody } = await req.json()
+  const { body: commentBody, activityType, activityId } = await req.json()
   if (!commentBody?.trim()) {
     return NextResponse.json({ error: 'Comment cannot be empty' }, { status: 400 })
   }
@@ -35,9 +35,15 @@ export async function POST(
 
   if (!duel) return NextResponse.json({ error: 'Duel not found' }, { status: 404 })
 
+  const insertData: Record<string, string> = { duel_id: id, user_id: user.id, body: commentBody.trim() }
+  if (activityType && activityId) {
+    insertData.activity_type = activityType
+    insertData.activity_id = activityId
+  }
+
   const { data: comment, error } = await admin
     .from('duel_comments')
-    .insert({ duel_id: id, user_id: user.id, body: commentBody.trim() })
+    .insert(insertData)
     .select()
     .single()
 
