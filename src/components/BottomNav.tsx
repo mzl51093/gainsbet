@@ -10,6 +10,7 @@ const navItems = [
   { href: '/dashboard', label: 'Home', icon: '🏠' },
   { href: '/log-workout', label: 'Log', icon: '➕' },
   { href: '/duel', label: 'Duels', icon: '⚔️' },
+  { href: '/tennis', label: 'Tennis', icon: '🎾' },
   { href: '/wagers', label: 'Wagers', icon: '💰' },
   { href: '/notifications', label: 'Alerts', icon: '🔔' },
   { href: '/profile', label: 'Profile', icon: '👤' },
