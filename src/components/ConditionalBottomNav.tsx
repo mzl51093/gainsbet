@@ -13,7 +13,6 @@ const NAV_PATHS = [
   '/draft',
   '/player',
   '/duel',
-  '/tennis',
 ]
 
 export default function ConditionalBottomNav() {
