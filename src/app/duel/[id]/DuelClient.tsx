@@ -259,6 +259,7 @@ export default function DuelClient({
   const [expandedCheckIn, setExpandedCheckIn] = useState<string | null>(null)
   const [activityCommentText, setActivityCommentText] = useState<Record<string, string>>({})
   const [postingActivityComment, setPostingActivityComment] = useState<string | null>(null)
+  const [activityCommentError, setActivityCommentError] = useState<string | null>(null)
 
   // Edit weights state
   const [editStarting, setEditStarting] = useState(
@@ -417,6 +418,7 @@ export default function DuelClient({
     const text = activityCommentText[activityId]?.trim()
     if (!text || postingActivityComment) return
     setPostingActivityComment(activityId)
+    setActivityCommentError(null)
     try {
       const res = await fetch(`/api/duel/${duelId}/comment`, {
         method: 'POST',
@@ -426,7 +428,12 @@ export default function DuelClient({
       if (res.ok) {
         setActivityCommentText(prev => ({ ...prev, [activityId]: '' }))
         router.refresh()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setActivityCommentError(d.error || 'Failed to post comment')
       }
+    } catch {
+      setActivityCommentError('Network error — try again')
     } finally {
       setPostingActivityComment(null)
     }
@@ -1098,22 +1105,27 @@ export default function DuelClient({
                       })()}
 
                       {/* Inline comment input */}
-                      <div className="flex gap-2 mt-2 pt-2 border-t border-gray-700/30">
-                        <input
-                          type="text"
-                          value={activityCommentText[ci.id] || ''}
-                          onChange={e => setActivityCommentText(prev => ({ ...prev, [ci.id]: e.target.value }))}
-                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && postActivityComment('checkin', ci.id)}
-                          placeholder="Add a comment..."
-                          className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 text-xs placeholder-gray-600 border border-gray-700 focus:border-green-500 focus:outline-none"
-                        />
-                        <button
-                          onClick={() => postActivityComment('checkin', ci.id)}
-                          disabled={postingActivityComment === ci.id || !activityCommentText[ci.id]?.trim()}
-                          className="bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black font-bold px-3 py-2 rounded-lg text-xs transition-colors"
-                        >
-                          {postingActivityComment === ci.id ? '...' : '→'}
-                        </button>
+                      <div className="mt-2 pt-2 border-t border-gray-700/30">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={activityCommentText[ci.id] || ''}
+                            onChange={e => { setActivityCommentError(null); setActivityCommentText(prev => ({ ...prev, [ci.id]: e.target.value })) }}
+                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && postActivityComment('checkin', ci.id)}
+                            placeholder="Add a comment..."
+                            className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 text-xs placeholder-gray-600 border border-gray-700 focus:border-green-500 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => postActivityComment('checkin', ci.id)}
+                            disabled={postingActivityComment === ci.id || !activityCommentText[ci.id]?.trim()}
+                            className="bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black font-bold px-3 py-2 rounded-lg text-xs transition-colors"
+                          >
+                            {postingActivityComment === ci.id ? '...' : '→'}
+                          </button>
+                        </div>
+                        {activityCommentError && (
+                          <p className="text-red-400 text-xs mt-1">{activityCommentError}</p>
+                        )}
                       </div>
                     </div>
                   )}
