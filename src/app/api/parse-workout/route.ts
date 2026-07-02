@@ -37,7 +37,7 @@ const TYPE_ALIASES: Record<string, WorkoutType> = {
 // This lets it distinguish a jog from a sprint, yoga from hot yoga, etc.
 // Points = pts_per_hour × (duration / 60) — computed by our code, not the AI.
 
-const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, determine the effort level and return ONLY valid JSON.
+const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, determine the effort level and return ONLY valid JSON with no markdown, no explanation, no extra text.
 
 EFFORT SCALE — pts_per_hour based on actual cardiovascular and physical exertion:
 16: Absolute max — Murph, death circuit, all-out sprint intervals
@@ -101,7 +101,15 @@ Jump rope → 11
 Boxing / martial arts → 10-12
 Dancing → 5-8 depending on intensity
 
-RETURN FORMAT (single JSON object, no markdown):
+REP-BASED EXERCISES — when the description is rep counts with no duration, estimate a realistic time:
+  50 sit-ups → duration: 5, strength, pts_per_hour: 8
+  100 push-ups → duration: 10, strength, pts_per_hour: 10
+  50 push-ups → duration: 5, strength, pts_per_hour: 10
+  100 squats → duration: 10, strength, pts_per_hour: 10
+  100 burpees → duration: 15, hiit, pts_per_hour: 12
+  General rule: ~1 minute per 10 reps for most bodyweight exercises. Scale pts_per_hour by intensity.
+
+RETURN FORMAT (single JSON object, NO markdown fences, no extra text — just the raw JSON):
 {"workout_type":"running","duration_minutes":45,"pts_per_hour":10,"summary":"Easy 45-min jog, moderate pace"}
 
 workout_type must be one of: hiit, running, strength, swimming, cycling, sports, cardio, walking, flexibility, other
@@ -116,7 +124,7 @@ When needed, return:
 {"needs_clarification":true,"question":"Your question here","options":["Option A","Option B"]}
 
 Examples of when to ask: "played golf" (walk vs ride = 2 vs 14 pts)
-Examples of when NOT to ask: "played basketball" (just assume pickup game), "went for a hike" (assume moderate), "did yoga" (assume vinyasa)`
+Examples of when NOT to ask: "played basketball" (assume pickup game), "went for a hike" (assume moderate), "did yoga" (assume vinyasa), "50 sit-ups" (estimate duration, no need to ask)`
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -140,7 +148,13 @@ export async function POST(request: Request) {
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-    const parsed = JSON.parse(cleaned)
+    let parsed: any
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch {
+      console.error('Parse workout — AI returned non-JSON:', cleaned)
+      return NextResponse.json({ error: 'Failed to parse workout' }, { status: 500 })
+    }
 
     // Clarification request — pass through as-is
     if (parsed.needs_clarification) {
@@ -167,7 +181,7 @@ export async function POST(request: Request) {
       summary: parsed.summary || description,
     })
   } catch (err) {
-    console.error('Parse workout error:', err)
+    console.error('Parse workout unexpected error:', err)
     return NextResponse.json({ error: 'Failed to parse workout' }, { status: 500 })
   }
 }

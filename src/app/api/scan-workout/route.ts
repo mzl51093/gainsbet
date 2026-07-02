@@ -78,7 +78,13 @@ Always respond with ONLY valid JSON:
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-    const parsed = JSON.parse(cleaned)
+    let parsed: any
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch {
+      console.error('Scan workout — AI returned non-JSON:', cleaned)
+      return NextResponse.json({ error: 'Failed to analyze screenshot' }, { status: 500 })
+    }
 
     const rawType = (parsed.workout_type || '').toLowerCase()
     const VALID_TYPES_ARR = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
