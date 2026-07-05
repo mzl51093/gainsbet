@@ -74,7 +74,7 @@ export default function RulesPage() {
           <div className="space-y-4">
             <Card>
               <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                Points are based on <span className="text-white font-semibold">intensity × duration</span>. Every workout type has a points-per-hour rate. Log a harder workout for longer and you earn more — it's that simple.
+                Points are based on <span className="text-white font-semibold">effort × duration</span>. Every workout type has a points-per-hour rate across 9 tiers. Log a harder workout for longer and you earn more — it's that simple.
               </p>
               <div className="bg-gray-800 rounded-xl p-4 font-mono text-sm text-center">
                 <span className="text-green-400">Points</span>
@@ -82,39 +82,31 @@ export default function RulesPage() {
                 <span className="text-blue-400">Rate</span>
                 <span className="text-gray-500"> × </span>
                 <span className="text-yellow-400">Hours</span>
-                <p className="text-gray-600 text-xs mt-1 font-sans">rounded to the nearest whole number, minimum 1 pt</p>
+                <p className="text-gray-600 text-xs mt-1 font-sans">rounded to the nearest whole number</p>
               </div>
             </Card>
 
             {/* Rate table */}
             <Card>
-              <h3 className="text-white font-semibold text-sm mb-3">Points Per Hour by Type</h3>
+              <h3 className="text-white font-semibold text-sm mb-3">Points Per Hour by Tier</h3>
               <div className="space-y-2">
                 {[
-                  { emoji: '⚡', label: 'HIIT / Circuit', rate: 16, tier: 'High' },
-                  { emoji: '🏃', label: 'Running', rate: 12, tier: 'High' },
-                  { emoji: '🏋️', label: 'Lifting / Weights', rate: 12, tier: 'High' },
-                  { emoji: '🏊', label: 'Swimming', rate: 11, tier: 'High' },
-                  { emoji: '🚴', label: 'Cycling / Spin', rate: 10, tier: 'Medium' },
-                  { emoji: '⚽', label: 'Sports / Active', rate: 10, tier: 'Medium' },
-                  { emoji: '💓', label: 'Cardio (other)', rate: 9, tier: 'Medium' },
-                  { emoji: '💪', label: 'Other', rate: 7, tier: 'Low' },
-                  { emoji: '🚶', label: 'Walking / Hike', rate: 5, tier: 'Low' },
-                  { emoji: '🧘', label: 'Yoga / Stretch', rate: 5, tier: 'Low' },
+                  { emoji: '🏅', label: 'Hyrox / Spartan Race / Max Effort', rate: 12 },
+                  { emoji: '⚡', label: 'HIIT / CrossFit / OrangeTheory / Bootcamp', rate: 10 },
+                  { emoji: '🏃', label: 'Running / Spin / Boxing / Circuit / Team Sports', rate: 8 },
+                  { emoji: '🏋️', label: 'Strength Training / Cycling / Peloton', rate: 6 },
+                  { emoji: '🚣', label: 'Jogging / Swimming / Rowing / Stairmaster', rate: 4 },
+                  { emoji: '🚶', label: 'Brisk Walk / Hiking / Pilates / Barre', rate: 2 },
+                  { emoji: '🐕', label: 'Easy Walk / Gentle Yoga / Driving Range', rate: 1 },
+                  { emoji: '⛳', label: 'Golf (Cart) / Stretching / Light Recovery', rate: 0.5 },
+                  { emoji: '🧘', label: 'Meditation / Sauna / Cold Plunge / Breathwork', rate: 0 },
                 ].map(w => (
                   <div key={w.label} className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0">
                     <div className="flex items-center gap-2">
                       <span>{w.emoji}</span>
                       <span className="text-gray-300 text-sm">{w.label}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        w.tier === 'High' ? 'bg-red-900/40 text-red-400' :
-                        w.tier === 'Medium' ? 'bg-yellow-900/40 text-yellow-400' :
-                        'bg-gray-800 text-gray-500'
-                      }`}>{w.tier}</span>
-                      <span className="text-white font-bold text-sm w-10 text-right">{w.rate} pts</span>
-                    </div>
+                    <span className="text-white font-bold text-sm w-14 text-right flex-shrink-0">{w.rate} pts</span>
                   </div>
                 ))}
               </div>
@@ -136,12 +128,12 @@ export default function RulesPage() {
               <h3 className="text-white font-semibold text-sm mb-3">Examples</h3>
               <div className="space-y-3">
                 {[
-                  { emoji: '🏋️', desc: '45-min lifting session', calc: '12 × 0.75', result: 9, note: null },
-                  { emoji: '🏃', desc: '30-min run', calc: '12 × 0.5', result: 6, note: null },
-                  { emoji: '⚡', desc: '20-min HIIT', calc: '16 × 0.33', result: 5, note: null },
-                  { emoji: '🚴', desc: '1-hour spin class', calc: '10 × 1.0', result: 10, note: null },
-                  { emoji: '🧘', desc: '60-min yoga', calc: '5 × 1.0', result: 5, note: null },
-                  { emoji: '🏃', desc: '1-hour run', calc: '12 × 1.0', result: 12, note: null },
+                  { emoji: '🏋️', desc: '45-min strength session', calc: '6 × 0.75', result: 5, note: null },
+                  { emoji: '🏃', desc: '30-min run', calc: '8 × 0.5', result: 4, note: null },
+                  { emoji: '⚡', desc: '20-min HIIT', calc: '10 × 0.33', result: 3, note: null },
+                  { emoji: '🔥', desc: '1-hour spin class', calc: '8 × 1.0', result: 8, note: null },
+                  { emoji: '🧘', desc: '60-min gentle yoga', calc: '1 × 1.0', result: 1, note: null },
+                  { emoji: '⛳', desc: '4-hour golf (walking)', calc: '2 × 4.0', result: 8, note: null },
                 ].map(ex => (
                   <div key={ex.desc} className="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2.5">
                     <div>
@@ -163,7 +155,7 @@ export default function RulesPage() {
               <p className="text-gray-400 text-sm leading-relaxed">
                 Use the <span className="text-white">Quick Log</span> tab to describe your workout in plain text
                 (e.g. "did the Murph, took 55 minutes, absolutely died"). The AI reads your description and assigns
-                an effort score between 1–16 pts/hr based on actual intensity, not just the workout type.
+                an effort score based on actual intensity within the 9-tier system, not just the workout type.
                 Brutal workouts get rated higher than easy ones — even within the same category.
               </p>
               <p className="text-gray-400 text-sm leading-relaxed mt-2">
@@ -357,7 +349,7 @@ export default function RulesPage() {
               />
               <Q
                 q="How does the AI Quick Log work?"
-                a="Type a natural description of your workout — length, what you did, how hard it was. The AI reads your description and assigns an effort-based score (1–16 pts/hr). Describing a brutal workout accurately gets you more points than sandbagging."
+                a="Type a natural description of your workout — length, what you did, how hard it was. The AI reads your description and assigns an effort-based score (0–12 pts/hr across 9 tiers). Describing a brutal workout accurately gets you more points than sandbagging."
               />
               <Q
                 q="Can my workout get rejected in a draft competition?"

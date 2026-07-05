@@ -1,34 +1,51 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
+import { WORKOUT_TYPES } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const TYPE_ALIASES: Record<string, WorkoutType> = {
-  yoga: 'flexibility',
-  pilates: 'flexibility',
-  stretching: 'flexibility',
-  stretch: 'flexibility',
-  jog: 'running',
-  jogging: 'running',
-  run: 'running',
-  bike: 'cycling',
-  biking: 'cycling',
-  spin: 'cycling',
-  lifting: 'strength',
-  weights: 'strength',
-  crossfit: 'hiit',
-  circuit: 'hiit',
-  walk: 'walking',
-  walking: 'walking',
-  hike: 'walking',
-  hiking: 'walking',
-  swim: 'swimming',
-  basketball: 'sports',
-  tennis: 'sports',
-  pickleball: 'sports',
-  soccer: 'sports',
-  volleyball: 'sports',
+  // common descriptions → canonical slugs
+  yoga: 'gentle-yoga', 'hot yoga': 'hiit', 'power yoga': 'hiit', 'vinyasa': 'gentle-yoga',
+  stretch: 'stretching', 'foam roll': 'stretching', 'mobility': 'light-recovery',
+  walk: 'brisk-walk', 'dog walk': 'easy-walk', 'easy walk': 'easy-walk',
+  hike: 'hiking', hiking: 'hiking',
+  jog: 'jogging', jogging: 'jogging',
+  run: 'running', running: 'running',
+  bike: 'cycling', biking: 'cycling',
+  swim: 'swimming', swimming: 'swimming',
+  'spin class': 'spin', spinning: 'spin',
+  lifting: 'strength', weights: 'strength', 'weight training': 'strength',
+  'heavy lifting': 'heavy-strength', 'heavy weights': 'heavy-strength',
+  'leg day': 'strength', 'push day': 'strength', 'pull day': 'strength',
+  circuit: 'circuit', 'circuit training': 'circuit',
+  crossfit: 'crossfit', 'cross fit': 'crossfit',
+  'orange theory': 'orangetheory', 'f45': 'orangetheory', 'barrys': 'orangetheory',
+  basketball: 'basketball', soccer: 'soccer', hockey: 'soccer', lacrosse: 'soccer',
+  tennis: 'tennis', pickleball: 'tennis',
+  'tennis doubles': 'tennis-doubles', 'pickleball doubles': 'tennis-doubles',
+  volleyball: 'volleyball',
+  boxing: 'boxing', 'martial arts': 'boxing', karate: 'boxing', 'jiu-jitsu': 'boxing',
+  sparring: 'boxing-sparring', mma: 'boxing-sparring',
+  'rock climbing': 'rock-climbing', climbing: 'rock-climbing',
+  rowing: 'rowing', 'row machine': 'rowing',
+  stairmaster: 'stairmaster', stairs: 'stairmaster',
+  pilates: 'pilates', barre: 'barre',
+  dance: 'dance', zumba: 'dance',
+  core: 'core-workout', abs: 'core-workout',
+  kayak: 'kayaking', paddleboard: 'kayaking',
+  hiit: 'hiit', 'jump rope': 'plyometrics', plyos: 'plyometrics',
+  'assault bike': 'assault-bike', 'ski erg': 'assault-bike', 'battle ropes': 'assault-bike',
+  metcon: 'metcon', wod: 'crossfit', 'track workout': 'sprint-intervals',
+  hyrox: 'hyrox', spartan: 'spartan-race', 'tough mudder': 'spartan-race',
+  golf: 'golf-walking', 'golf walking': 'golf-walking', 'golf cart': 'golf-cart',
+  'driving range': 'driving-range', 'golf simulator': 'golf-simulator',
+  elliptical: 'easy-elliptical', cardio: 'moderate-cardio',
+  peloton: 'peloton', tonal: 'strength',
+  // old slugs
+  sports: 'basketball', flexibility: 'gentle-yoga', other: 'moderate-cardio',
+  walking: 'brisk-walk',
 }
 
 
@@ -37,94 +54,41 @@ const TYPE_ALIASES: Record<string, WorkoutType> = {
 // This lets it distinguish a jog from a sprint, yoga from hot yoga, etc.
 // Points = pts_per_hour × (duration / 60) — computed by our code, not the AI.
 
-const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, determine the effort level and return ONLY valid JSON with no markdown, no explanation, no extra text.
+const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, pick the most accurate workout_type from the list below and set pts_per_hour to match the actual effort. Return ONLY valid JSON with no markdown, no explanation.
 
-EFFORT SCALE — pts_per_hour based on actual cardiovascular and physical exertion:
-16: Absolute max — Murph, death circuit, all-out sprint intervals
-14: Very hard — intense HIIT, CrossFit WODs, race pace
-12: Hard — tempo run, heavy lifting session, competitive swim
-10: Moderate-high — jogging, moderate cycling, vigorous sports, bootcamp
-8:  Moderate — brisk walk, casual sports, light jogging, reformer pilates
-6:  Light-moderate — easy hike, active yoga, leisurely cycling, shooting hoops
-4:  Light — slow walk, casual swim, easy stretching, recreational ping pong
-2:  Very light — golf cart, slow stroll, light stretching
+WORKOUT TYPE SLUGS AND DEFAULT RATES (pts/hr):
+0:    meditation, sauna, cold-plunge, breathwork
+0.5:  golf-cart, golf-simulator, golf-putting, stretching, light-recovery
+1:    driving-range, easy-walk, gentle-yoga, recovery-ride, physical-therapy
+2:    golf-walking, brisk-walk, hiking, incline-walk, pilates, barre, core-workout, dance, kayaking, easy-elliptical
+4:    jogging, stairmaster, rowing, swimming, bodyweight, moderate-cardio
+6:    strength, cycling, peloton, tennis-doubles, swimming-moderate, moderate-rowing
+8:    running, heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
+10:   hiit, crossfit, orangetheory, bootcamp, sprint-intervals, plyometrics, assault-bike, boxing-sparring, metcon
+12:   hyrox, spartan-race, crossfit-comp, max-effort
 
-ACTIVITY CALIBRATION (use these as anchors — adjust up/down based on context clues):
-Running:
-  easy jog → 8 | regular run → 10 | tempo/race pace → 12 | sprint intervals → 14
+Pick the closest slug. The pts_per_hour SHOULD match the slug's default rate above, but you may adjust ±1 tier based on context clues (e.g. "easy jog" = jogging at 4, not running at 8).
 
-Lifting / strength:
-  light machine work → 8 | moderate lifting → 10 | heavy compound lifts → 12 | max effort (squat/deadlift day) → 14
+REP-BASED EXERCISES — estimate duration when none is given:
+  ~1 min per 10 reps. 50 sit-ups → 5 min, core-workout, 2 pts/hr.
+  50 push-ups → 5 min, bodyweight, 4. 100 burpees → 15 min, hiit, 10.
 
-HIIT / circuits:
-  moderate bootcamp → 10 | hard intervals → 12 | Murph / max effort → 14-16
+GOLF RULES (strict):
+  Golf with cart → golf-cart, 0.5 pts/hr
+  Driving range → driving-range, 1 pts/hr
+  Golf walking the course → golf-walking, 2 pts/hr
 
-Cycling:
-  casual bike ride → 6 | moderate road cycling → 8 | hard Peloton/spin → 11
-
-Swimming:
-  recreational splashing → 4 | easy laps → 8 | swim workout → 11
-
-Hiking:
-  flat easy trail → 5 | moderate hills → 8 | strenuous mountain (significant elevation) → 11
-
-Basketball:
-  shooting around → 4 | casual pickup game → 7 | competitive full-court → 10
-
-Soccer / tennis / pickleball:
-  recreational → 7 | competitive match → 10
-
-Volleyball:
-  casual backyard → 4 | competitive → 8
-
-Softball / baseball:
-  → 5 (lots of standing between plays regardless of pace)
-
-Yoga:
-  restorative / gentle → 3 | vinyasa → 5 | hot yoga / power yoga → 8
-
-Pilates:
-  mat pilates → 5 | reformer → 7
-
-Golf:
-  riding a cart, 18 holes → pts_per_hour: 1, duration: 240 (total ~4 pts)
-  walking the course, 18 holes → pts_per_hour: 3, duration: 270 (total ~14 pts)
-  riding a cart, 9 holes → pts_per_hour: 1, duration: 120 (total ~2 pts)
-  walking the course, 9 holes → pts_per_hour: 3, duration: 135 (total ~6 pts)
-  driving range only → pts_per_hour: 2, duration: 60 (total ~2 pts)
-
-Ping pong / table tennis:
-  casual → 3 | competitive → 6
-
-Elliptical / rowing / stairmaster → 9
-Jump rope → 11
-Boxing / martial arts → 10-12
-Dancing → 5-8 depending on intensity
-
-REP-BASED EXERCISES — when the description is rep counts with no duration, estimate a realistic time:
-  50 sit-ups → duration: 5, strength, pts_per_hour: 8
-  100 push-ups → duration: 10, strength, pts_per_hour: 10
-  50 push-ups → duration: 5, strength, pts_per_hour: 10
-  100 squats → duration: 10, strength, pts_per_hour: 10
-  100 burpees → duration: 15, hiit, pts_per_hour: 12
-  General rule: ~1 minute per 10 reps for most bodyweight exercises. Scale pts_per_hour by intensity.
-
-RETURN FORMAT (single JSON object, NO markdown fences, no extra text — just the raw JSON):
-{"workout_type":"running","duration_minutes":45,"pts_per_hour":10,"summary":"Easy 45-min jog, moderate pace"}
-
-workout_type must be one of: hiit, running, strength, swimming, cycling, sports, cardio, walking, flexibility, other
-  - Use the closest match for display/emoji purposes (e.g. pickleball → sports, hiking → walking, pilates → flexibility)
-  - The pts_per_hour you set overrides the type's default rate, so pick what fits best
+RETURN FORMAT (raw JSON only):
+{"workout_type":"running","duration_minutes":45,"pts_per_hour":8,"summary":"45-min run at moderate pace"}
 
 CLARIFICATION — only ask when BOTH are true:
-  1. The effort level is genuinely unclear from the description
-  2. The score difference between interpretations is large (>6 pts)
+  1. Effort level is genuinely ambiguous (not just missing duration)
+  2. Score difference between interpretations exceeds 10 pts total
 
-When needed, return:
-{"needs_clarification":true,"question":"Your question here","options":["Option A","Option B"]}
+When needed:
+{"needs_clarification":true,"question":"...","options":["Option A","Option B"]}
 
-Examples of when to ask: "played golf" (walk vs ride = 2 vs 14 pts)
-Examples of when NOT to ask: "played basketball" (assume pickup game), "went for a hike" (assume moderate), "did yoga" (assume vinyasa), "50 sit-ups" (estimate duration, no need to ask)`
+Never ask about duration — estimate it. Never ask for activities with obvious effort levels.`
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -161,13 +125,11 @@ export async function POST(request: Request) {
       return NextResponse.json(parsed)
     }
 
-    const rawType = (parsed.workout_type || '').toLowerCase()
-    const VALID_TYPES_ARR = ['hiit', 'running', 'strength', 'swimming', 'cycling', 'sports', 'cardio', 'walking', 'flexibility', 'other'] as const
-    const workoutType: WorkoutType = VALID_TYPES_ARR.includes(rawType as WorkoutType)
-      ? rawType as WorkoutType
-      : (TYPE_ALIASES[rawType] ?? 'other')
+    const rawType = (parsed.workout_type || '').toLowerCase().trim()
+    const VALID_SLUGS = WORKOUT_TYPES.map(t => t.value)
+    const workoutType: WorkoutType = (VALID_SLUGS.includes(rawType as WorkoutType) ? rawType : TYPE_ALIASES[rawType]) as WorkoutType ?? 'moderate-cardio'
 
-    const durationMinutes = Math.max(10, Math.min(480, Math.round(parsed.duration_minutes || 45)))
+    const durationMinutes = Math.max(1, Math.min(480, Math.round(parsed.duration_minutes || 30)))
     const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || 7))
 
     // Points from rate — our code computes this, AI only provides the rate

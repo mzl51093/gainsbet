@@ -124,12 +124,21 @@ interface Props {
 }
 
 const WORKOUT_EMOJIS: Record<string, string> = {
-  strength: '🏋️',
-  cardio: '🏃',
-  hiit: '⚡',
-  flexibility: '🧘',
-  sports: '⚽',
-  other: '💪',
+  // new slugs
+  meditation: '🧘', sauna: '🧖', 'cold-plunge': '🧊', breathwork: '💨',
+  'golf-cart': '⛳', 'golf-simulator': '⛳', 'golf-putting': '⛳', stretching: '🤸', 'light-recovery': '💆',
+  'driving-range': '⛳', 'easy-walk': '🐕', 'gentle-yoga': '🧘', 'recovery-ride': '🔄', 'physical-therapy': '🏥',
+  'golf-walking': '⛳', 'brisk-walk': '🚶', hiking: '🥾', 'incline-walk': '⛰️',
+  pilates: '🩰', barre: '🩰', 'core-workout': '🎯', dance: '💃', kayaking: '🛶', 'easy-elliptical': '〇',
+  jogging: '🏃', stairmaster: '🪜', rowing: '🚣', swimming: '🏊', bodyweight: '💪', 'moderate-cardio': '❤️',
+  strength: '🏋️', cycling: '🚴', peloton: '🚴', 'tennis-doubles': '🎾', 'swimming-moderate': '🏊', 'moderate-rowing': '🚣',
+  running: '🏃', 'heavy-strength': '🏋️', spin: '🔥', tennis: '🎾',
+  basketball: '🏀', soccer: '⚽', boxing: '🥊', circuit: '⚡', 'rock-climbing': '🧗', volleyball: '🏐',
+  hiit: '⚡', crossfit: '🔥', orangetheory: '🍊', bootcamp: '💥',
+  'sprint-intervals': '💨', plyometrics: '🦘', 'assault-bike': '💀', 'boxing-sparring': '🥊', metcon: '🔥',
+  hyrox: '🏅', 'spartan-race': '🏆', 'crossfit-comp': '🏆', 'max-effort': '💀',
+  // legacy slugs
+  cardio: '❤️', flexibility: '🧘', sports: '⚽', walking: '🚶', other: '💪',
 }
 
 const QUICK_REACTIONS = ['🔥', '💀', '👏', '😬', '💪', '🫠']

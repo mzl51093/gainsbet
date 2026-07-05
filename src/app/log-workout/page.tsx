@@ -13,10 +13,16 @@ const PROOF_TYPES = [
   { value: 'other', label: 'Other', emoji: '📎' },
 ]
 
-const INTENSITY_GROUPS = [
-  { label: '🔴 High Intensity', key: 'high', sublabel: '11–16 pts/hr' },
-  { label: '🟡 Medium Intensity', key: 'medium', sublabel: '9–10 pts/hr' },
-  { label: '🟢 Light Activity', key: 'low', sublabel: '5–7 pts/hr' },
+const TIER_GROUPS = [
+  { label: '💀 12 pts/hr', tier: 12 },
+  { label: '🔥 10 pts/hr', tier: 10 },
+  { label: '⚡ 8 pts/hr',  tier: 8 },
+  { label: '🏋️ 6 pts/hr',  tier: 6 },
+  { label: '🏃 4 pts/hr',  tier: 4 },
+  { label: '🚶 2 pts/hr',  tier: 2 },
+  { label: '🐕 1 pt/hr',   tier: 1 },
+  { label: '⛳ 0.5 pts/hr', tier: 0.5 },
+  { label: '🧘 0 pts',     tier: 0 },
 ]
 
 interface ParsedWorkout {
@@ -472,11 +478,11 @@ function LogWorkoutInner() {
                           const raw = e.target.value
                           const d = parseInt(raw, 10)
                           if (!raw || isNaN(d) || d < 1) return
-                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.max(1, Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60))) })
+                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60)) })
                         }}
                         onBlur={() => {
-                          const d = Math.max(10, Math.min(480, parsed.duration_minutes))
-                          setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60))) })
+                          const d = Math.max(1, Math.min(480, parsed.duration_minutes))
+                          setParsed({ ...parsed, duration_minutes: d, points: Math.round(parsed.pts_per_hour * (d / 60)) })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
                       />
@@ -485,7 +491,7 @@ function LogWorkoutInner() {
                           <button
                             key={d}
                             type="button"
-                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.max(1, Math.round(parsed.pts_per_hour * (d / 60))) })}
+                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.round(parsed.pts_per_hour * (d / 60)) })}
                             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               parsed.duration_minutes === d
                                 ? 'bg-green-500 text-black'
@@ -547,34 +553,30 @@ function LogWorkoutInner() {
               <p className="text-gray-500 text-xs mt-1">{ptsPerHour} pts/hour · scales with duration</p>
             </div>
 
-            {/* Workout Type by intensity group */}
+            {/* Workout Type by pts/hr tier */}
             <div>
               <label className="block text-sm text-gray-400 mb-3">Workout Type</label>
-              <div className="space-y-3">
-                {INTENSITY_GROUPS.map(group => {
-                  const groupTypes = WORKOUT_TYPES.filter(t => t.intensity === group.key)
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                {TIER_GROUPS.map(group => {
+                  const groupTypes = WORKOUT_TYPES.filter(t => t.tier === group.tier && !('hidden' in t && t.hidden))
+                  if (groupTypes.length === 0) return null
                   return (
-                    <div key={group.key}>
-                      <p className="text-xs text-gray-600 mb-1.5">
-                        {group.label} <span className="text-gray-700">· {group.sublabel}</span>
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
+                    <div key={group.tier}>
+                      <p className="text-xs text-gray-500 font-semibold mb-1.5 sticky top-0 bg-gray-950 py-0.5">{group.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {groupTypes.map(type => (
                           <button
                             key={type.value}
                             type="button"
                             onClick={() => setWorkoutType(type.value as WorkoutType)}
-                            className={`p-3 rounded-xl border-2 transition-colors text-left flex items-center gap-2 ${
+                            className={`px-3 py-2 rounded-xl border text-xs transition-colors flex items-center gap-1.5 ${
                               workoutType === type.value
-                                ? 'border-green-500 bg-green-500/10'
-                                : 'border-gray-700 bg-gray-900'
+                                ? 'border-green-500 bg-green-500/15 text-white'
+                                : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500'
                             }`}
                           >
-                            <span className="text-xl">{type.emoji}</span>
-                            <div>
-                              <div className="text-xs text-white leading-tight">{type.label}</div>
-                              <div className="text-xs text-gray-600">{type.ptsPerHour} pts/hr</div>
-                            </div>
+                            <span>{type.emoji}</span>
+                            <span className="leading-tight">{type.label}</span>
                           </button>
                         ))}
                       </div>
@@ -591,20 +593,20 @@ function LogWorkoutInner() {
               </label>
               <input
                 type="range"
-                min={15}
-                max={180}
+                min={5}
+                max={240}
                 step={5}
                 value={duration}
                 onChange={e => setDuration(Number(e.target.value))}
                 className="w-full accent-green-500"
               />
               <div className="flex justify-between text-xs text-gray-600 mt-1">
-                <span>15 min</span>
+                <span>5 min</span>
                 <span>1 hour</span>
-                <span>3 hours</span>
+                <span>4 hours</span>
               </div>
-              <div className="grid grid-cols-4 gap-2 mt-3">
-                {[30, 45, 60, 90].map(d => (
+              <div className="grid grid-cols-5 gap-2 mt-3">
+                {[15, 30, 45, 60, 90].map(d => (
                   <button
                     key={d}
                     type="button"
