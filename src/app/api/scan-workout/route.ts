@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-import { WORKOUT_TYPES } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
