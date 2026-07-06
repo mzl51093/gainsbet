@@ -6,7 +6,8 @@ import type { WorkoutType } from '@/lib/points'
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const TYPE_ALIASES: Record<string, WorkoutType> = {
-  yoga: 'gentle-yoga', stretch: 'stretching', walk: 'brisk-walk', hike: 'hiking',
+  yoga: 'gentle-yoga', stretch: 'stretching', walk: 'brisk-walk',
+  hike: 'hiking', hiking: 'hiking', 'easy hike': 'hiking', 'moderate hike': 'moderate-hiking',
   jog: 'jogging', jogging: 'jogging', run: 'running', running: 'running',
   bike: 'cycling', biking: 'cycling', spin: 'spin',
   lifting: 'strength', weights: 'strength', 'weight training': 'strength',
@@ -16,9 +17,10 @@ const TYPE_ALIASES: Record<string, WorkoutType> = {
   golf: 'golf-walking', 'golf cart': 'golf-cart', 'driving range': 'driving-range',
   rowing: 'rowing', stairmaster: 'stairmaster', swimming: 'swimming',
   hiit: 'hiit', bootcamp: 'bootcamp', elliptical: 'easy-elliptical',
-  // old slugs
+  // legacy slugs
   sports: 'basketball', cardio: 'moderate-cardio', flexibility: 'gentle-yoga',
   walking: 'brisk-walk', other: 'moderate-cardio',
+  'swimming-moderate': 'swimming', 'moderate-rowing': 'rowing',
 }
 
 export async function POST(request: Request) {
@@ -39,15 +41,16 @@ WORKOUT TYPE SLUGS AND DEFAULT RATES (pts/hr):
 0:    meditation, sauna, cold-plunge, breathwork
 0.5:  golf-cart, golf-simulator, golf-putting, stretching, light-recovery
 1:    driving-range, easy-walk, gentle-yoga, recovery-ride, physical-therapy
-2:    golf-walking, brisk-walk, hiking, incline-walk, pilates, barre, core-workout, dance, kayaking, easy-elliptical
-4:    jogging, stairmaster, rowing, swimming, bodyweight, moderate-cardio
-6:    strength, cycling, peloton, tennis-doubles, swimming-moderate, moderate-rowing
+2:    golf-walking, brisk-walk, hiking, dance, kayaking, easy-elliptical
+4:    pilates, barre, core-workout, incline-walk, bodyweight
+6:    jogging, stairmaster, rowing, swimming, moderate-cardio
+7:    strength, cycling, peloton, tennis-doubles, moderate-hiking
 8:    running, heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
 10:   hiit, crossfit, orangetheory, bootcamp, sprint-intervals, plyometrics, assault-bike, boxing-sparring, metcon
 12:   hyrox, spartan-race, crossfit-comp, max-effort
 
 WHOOP STRAIN → pts_per_hour:
-  0–4 → 0.5–1  |  5–7 → 2–3  |  8–10 → 4–5  |  11–13 → 6–8  |  14–16 → 9–11  |  17–21 → 12
+  0–4 → 0.5–1  |  5–7 → 2–4  |  8–10 → 5–6  |  11–13 → 6–8  |  14–16 → 9–11  |  17–21 → 12
 
 HR ZONE overrides (apply after strain):
   97%+ Zone 0 (HR < 105 bpm) → hard cap: pts_per_hour ≤ 2

@@ -22,30 +22,31 @@ export const WORKOUT_TYPES = [
   // ── 2 pts/hr ──────────────────────────────────────────────────────────────
   { value: 'golf-walking',     label: 'Golf (Walking)',                   ptsPerHour: 2,    emoji: '⛳', tier: 2 },
   { value: 'brisk-walk',       label: 'Brisk Walk',                       ptsPerHour: 2,    emoji: '🚶', tier: 2 },
-  { value: 'hiking',           label: 'Hiking',                           ptsPerHour: 2,    emoji: '🥾', tier: 2 },
-  { value: 'incline-walk',     label: 'Incline Treadmill Walk',           ptsPerHour: 2,    emoji: '⛰️', tier: 2 },
-  { value: 'pilates',          label: 'Pilates',                          ptsPerHour: 2,    emoji: '🩰', tier: 2 },
-  { value: 'barre',            label: 'Barre',                            ptsPerHour: 2,    emoji: '🩰', tier: 2 },
-  { value: 'core-workout',     label: 'Core / Ab Workout',                ptsPerHour: 2,    emoji: '🎯', tier: 2 },
+  { value: 'hiking',           label: 'Easy Hike',                        ptsPerHour: 2,    emoji: '🥾', tier: 2 },
   { value: 'dance',            label: 'Dance',                            ptsPerHour: 2,    emoji: '💃', tier: 2 },
   { value: 'kayaking',         label: 'Kayaking / Paddle Boarding',       ptsPerHour: 2,    emoji: '🛶', tier: 2 },
   { value: 'easy-elliptical',  label: 'Easy Elliptical',                  ptsPerHour: 2,    emoji: '〇', tier: 2 },
 
   // ── 4 pts/hr ──────────────────────────────────────────────────────────────
-  { value: 'jogging',          label: 'Jogging',                          ptsPerHour: 4,    emoji: '🏃', tier: 4 },
-  { value: 'stairmaster',      label: 'StairMaster / Stairs',             ptsPerHour: 4,    emoji: '🪜', tier: 4 },
-  { value: 'rowing',           label: 'Rowing',                           ptsPerHour: 4,    emoji: '🚣', tier: 4 },
-  { value: 'swimming',         label: 'Swimming Laps',                    ptsPerHour: 4,    emoji: '🏊', tier: 4 },
-  { value: 'bodyweight',       label: 'Bodyweight / TRX / Resistance',    ptsPerHour: 4,    emoji: '💪', tier: 4 },
-  { value: 'moderate-cardio',  label: 'Moderate Cardio',                  ptsPerHour: 4,    emoji: '❤️', tier: 4 },
+  { value: 'pilates',          label: 'Pilates',                          ptsPerHour: 4,    emoji: '🩰', tier: 4 },
+  { value: 'barre',            label: 'Barre',                            ptsPerHour: 4,    emoji: '🩰', tier: 4 },
+  { value: 'core-workout',     label: 'Core / Ab Workout',                ptsPerHour: 4,    emoji: '🎯', tier: 4 },
+  { value: 'incline-walk',     label: 'Incline Treadmill Walk',           ptsPerHour: 4,    emoji: '⛰️', tier: 4 },
+  { value: 'bodyweight',       label: 'Bodyweight / TRX / Resistance Bands', ptsPerHour: 4, emoji: '💪', tier: 4 },
 
   // ── 6 pts/hr ──────────────────────────────────────────────────────────────
-  { value: 'strength',         label: 'Strength Training',                ptsPerHour: 6,    emoji: '🏋️', tier: 6 },
-  { value: 'cycling',          label: 'Cycling (Outdoor/Indoor)',          ptsPerHour: 6,    emoji: '🚴', tier: 6 },
-  { value: 'peloton',          label: 'Peloton / Tonal Ride',             ptsPerHour: 6,    emoji: '🚴', tier: 6 },
-  { value: 'tennis-doubles',   label: 'Tennis / Pickleball (Doubles)',    ptsPerHour: 6,    emoji: '🎾', tier: 6 },
-  { value: 'swimming-moderate',label: 'Moderate Swimming',                ptsPerHour: 6,    emoji: '🏊', tier: 6 },
-  { value: 'moderate-rowing',  label: 'Moderate Rowing',                  ptsPerHour: 6,    emoji: '🚣', tier: 6 },
+  { value: 'jogging',          label: 'Jogging',                          ptsPerHour: 6,    emoji: '🏃', tier: 6 },
+  { value: 'stairmaster',      label: 'StairMaster / Stairs',             ptsPerHour: 6,    emoji: '🪜', tier: 6 },
+  { value: 'rowing',           label: 'Rowing',                           ptsPerHour: 6,    emoji: '🚣', tier: 6 },
+  { value: 'swimming',         label: 'Swimming Laps',                    ptsPerHour: 6,    emoji: '🏊', tier: 6 },
+  { value: 'moderate-cardio',  label: 'Moderate Cardio',                  ptsPerHour: 6,    emoji: '❤️', tier: 6 },
+
+  // ── 7 pts/hr ──────────────────────────────────────────────────────────────
+  { value: 'strength',         label: 'Strength Training',                ptsPerHour: 7,    emoji: '🏋️', tier: 7 },
+  { value: 'cycling',          label: 'Cycling (Outdoor/Indoor)',          ptsPerHour: 7,    emoji: '🚴', tier: 7 },
+  { value: 'peloton',          label: 'Peloton / Tonal',                  ptsPerHour: 7,    emoji: '🚴', tier: 7 },
+  { value: 'tennis-doubles',   label: 'Tennis / Pickleball (Doubles)',    ptsPerHour: 7,    emoji: '🎾', tier: 7 },
+  { value: 'moderate-hiking',  label: 'Moderate Hike',                    ptsPerHour: 7,    emoji: '🥾', tier: 7 },
 
   // ── 8 pts/hr ──────────────────────────────────────────────────────────────
   { value: 'running',          label: 'Running',                          ptsPerHour: 8,    emoji: '🏃', tier: 8 },
@@ -77,11 +78,13 @@ export const WORKOUT_TYPES = [
   { value: 'max-effort',       label: 'Max Effort Conditioning',          ptsPerHour: 12,   emoji: '💀', tier: 12 },
 
   // ── Legacy slugs (hidden from picker, kept for backwards-compat display) ──
+  { value: 'swimming-moderate',label: 'Moderate Swimming',                ptsPerHour: 6,    emoji: '🏊', tier: 6,  hidden: true },
+  { value: 'moderate-rowing',  label: 'Moderate Rowing',                  ptsPerHour: 6,    emoji: '🚣', tier: 6,  hidden: true },
   { value: 'sports',           label: 'Sports / Active',                  ptsPerHour: 8,    emoji: '⚽', tier: 8,  hidden: true },
-  { value: 'cardio',           label: 'Cardio',                           ptsPerHour: 4,    emoji: '❤️', tier: 4,  hidden: true },
+  { value: 'cardio',           label: 'Cardio',                           ptsPerHour: 6,    emoji: '❤️', tier: 6,  hidden: true },
   { value: 'walking',          label: 'Walking',                          ptsPerHour: 2,    emoji: '🚶', tier: 2,  hidden: true },
   { value: 'flexibility',      label: 'Yoga / Stretch',                   ptsPerHour: 0.5,  emoji: '🧘', tier: 0.5, hidden: true },
-  { value: 'other',            label: 'Other',                            ptsPerHour: 4,    emoji: '💪', tier: 4,  hidden: true },
+  { value: 'other',            label: 'Other',                            ptsPerHour: 6,    emoji: '💪', tier: 6,  hidden: true },
 ] as const
 
 export type WorkoutType = typeof WORKOUT_TYPES[number]['value']

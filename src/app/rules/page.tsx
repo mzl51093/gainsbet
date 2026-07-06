@@ -93,10 +93,11 @@ export default function RulesPage() {
                 {[
                   { emoji: '🏅', label: 'Hyrox / Spartan Race / Max Effort', rate: 12 },
                   { emoji: '⚡', label: 'HIIT / CrossFit / OrangeTheory / Bootcamp', rate: 10 },
-                  { emoji: '🏃', label: 'Running / Spin / Boxing / Circuit / Team Sports', rate: 8 },
-                  { emoji: '🏋️', label: 'Strength Training / Cycling / Peloton', rate: 6 },
-                  { emoji: '🚣', label: 'Jogging / Swimming / Rowing / Stairmaster', rate: 4 },
-                  { emoji: '🚶', label: 'Brisk Walk / Hiking / Pilates / Barre', rate: 2 },
+                  { emoji: '🏃', label: 'Running / Spin / Team Sports / Boxing / Circuit', rate: 8 },
+                  { emoji: '🏋️', label: 'Strength Training / Cycling / Peloton / Tennis Doubles', rate: 7 },
+                  { emoji: '🚣', label: 'Jogging / Swimming / Rowing / Stairmaster', rate: 6 },
+                  { emoji: '💪', label: 'Pilates / Barre / Core / Incline Walk / Bodyweight', rate: 4 },
+                  { emoji: '🚶', label: 'Brisk Walk / Easy Hike / Golf (Walking) / Dance', rate: 2 },
                   { emoji: '🐕', label: 'Easy Walk / Gentle Yoga / Driving Range', rate: 1 },
                   { emoji: '⛳', label: 'Golf (Cart) / Stretching / Light Recovery', rate: 0.5 },
                   { emoji: '🧘', label: 'Meditation / Sauna / Cold Plunge / Breathwork', rate: 0 },
@@ -128,11 +129,11 @@ export default function RulesPage() {
               <h3 className="text-white font-semibold text-sm mb-3">Examples</h3>
               <div className="space-y-3">
                 {[
-                  { emoji: '🏋️', desc: '45-min strength session', calc: '6 × 0.75', result: 5, note: null },
+                  { emoji: '🏋️', desc: '45-min strength session', calc: '7 × 0.75', result: 5, note: null },
                   { emoji: '🏃', desc: '30-min run', calc: '8 × 0.5', result: 4, note: null },
-                  { emoji: '⚡', desc: '20-min HIIT', calc: '10 × 0.33', result: 3, note: null },
+                  { emoji: '⚡', desc: '45-min HIIT class', calc: '10 × 0.75', result: 8, note: null },
                   { emoji: '🔥', desc: '1-hour spin class', calc: '8 × 1.0', result: 8, note: null },
-                  { emoji: '🧘', desc: '60-min gentle yoga', calc: '1 × 1.0', result: 1, note: null },
+                  { emoji: '🚣', desc: '30-min rowing session', calc: '6 × 0.5', result: 3, note: null },
                   { emoji: '⛳', desc: '4-hour golf (walking)', calc: '2 × 4.0', result: 8, note: null },
                 ].map(ex => (
                   <div key={ex.desc} className="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2.5">
