@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-import { WORKOUT_TYPES, calculatePoints } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints, isDistanceBased, calculateDistancePoints } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -33,37 +33,31 @@ export async function POST(request: Request) {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
-      system: `You are a fitness effort assessor. Analyze workout screenshots from apps like Whoop, Apple Watch, Peloton, Garmin, Strava, Nike Run Club, etc.
+      system: `You are a fitness effort assessor. Analyze workout screenshots from apps like Whoop, Apple Watch, Peloton, Garmin, Strava, Nike Run Club, etc. Return ONLY valid JSON, no markdown.
 
-Pick the most accurate workout_type slug AND set pts_per_hour based on actual effort signals (HR, zones, strain, pace, power).
+DISTANCE-BASED ACTIVITIES (1 pt/mile — extract distance, return "miles" field):
+  Types: running, jogging, brisk-walk, easy-walk, hiking, moderate-hiking, golf-walking
+  Always extract miles from the screenshot. Include miles in summary.
+  Format: {"workout_type":"running","duration_minutes":42,"miles":5.2,"points":5.2,"summary":"42-min run, 5.2 miles, avg HR 158"}
+  Golf walking → golf-walking + miles from distance shown.
 
-WORKOUT TYPE SLUGS AND DEFAULT RATES (pts/hr):
+ALL OTHER SLUGS (pts/hr × duration):
 0:    meditation, sauna, cold-plunge, breathwork
 0.5:  golf-cart, golf-simulator, golf-putting, stretching, light-recovery
-1:    driving-range, easy-walk, gentle-yoga, recovery-ride, physical-therapy
-2:    golf-walking, brisk-walk, hiking, dance, kayaking, easy-elliptical
+1:    driving-range, gentle-yoga, recovery-ride, physical-therapy
 4:    pilates, barre, core-workout, incline-walk, bodyweight
-6:    jogging, stairmaster, rowing, swimming, moderate-cardio
-7:    strength, cycling, peloton, tennis-doubles, moderate-hiking
-8:    running, heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
+6:    stairmaster, rowing, swimming, moderate-cardio
+7:    strength, cycling, peloton, tennis-doubles
+8:    heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
 10:   hiit, crossfit, orangetheory, bootcamp, sprint-intervals, plyometrics, assault-bike, boxing-sparring, metcon
 12:   hyrox, spartan-race, crossfit-comp, max-effort
 
-WHOOP STRAIN → pts_per_hour:
+WHOOP STRAIN → pts_per_hour (non-distance types only):
   0–4 → 0.5–1  |  5–7 → 2–4  |  8–10 → 5–6  |  11–13 → 6–8  |  14–16 → 9–11  |  17–21 → 12
 
-HR ZONE overrides (apply after strain):
-  97%+ Zone 0 (HR < 105 bpm) → hard cap: pts_per_hour ≤ 2
-  Mostly Zone 1 (avg HR < 120) → cap: pts_per_hour ≤ 5
-  Avg HR ≥ 150 → floor: pts_per_hour ≥ 8
+HR ZONE overrides: avg HR < 120 → cap ≤ 5 | avg HR ≥ 150 → floor ≥ 8
 
-GOLF (strict):
-  Cart → golf-cart, 0.5 pts/hr  |  Walking → golf-walking, 2 pts/hr  |  Range → driving-range, 1 pt/hr
-
-Extract duration in minutes from the screenshot. Write a short summary with visible stats (strain, avg HR, distance, calories, etc.).
-
-Return ONLY valid JSON, no markdown:
-{"workout_type":"running","duration_minutes":42,"pts_per_hour":8,"summary":"42-min run, avg HR 158 bpm, 3.8 miles"}`,
+Non-distance format: {"workout_type":"strength","duration_minutes":45,"pts_per_hour":7,"summary":"45-min strength, avg HR 140"}`,
       messages: [{
         role: 'user',
         content: [
@@ -98,6 +92,20 @@ Return ONLY valid JSON, no markdown:
     const workoutType: WorkoutType = (VALID_SLUGS.includes(rawType as WorkoutType) ? rawType : TYPE_ALIASES[rawType]) as WorkoutType ?? 'moderate-cardio'
 
     const durationMinutes = Math.max(1, Math.min(480, Math.round(parsed.duration_minutes || 30)))
+
+    // Distance-based scoring: 1 pt/mile
+    if (parsed.miles != null && isDistanceBased(workoutType)) {
+      const miles = Math.max(0.1, Math.min(200, Number(parsed.miles)))
+      const points = calculateDistancePoints(miles)
+      return NextResponse.json({
+        workout_type: workoutType,
+        duration_minutes: durationMinutes,
+        miles,
+        points,
+        summary: parsed.summary || 'Workout logged via screenshot',
+      })
+    }
+
     const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || calculatePoints(workoutType, 60)))
     const points = Math.max(1, Math.round(ptsPerHour * (durationMinutes / 60)))
 

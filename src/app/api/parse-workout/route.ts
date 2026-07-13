@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-import { WORKOUT_TYPES } from '@/lib/points'
+import { WORKOUT_TYPES, isDistanceBased, calculateDistancePoints } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -54,42 +54,36 @@ const TYPE_ALIASES: Record<string, WorkoutType> = {
 // This lets it distinguish a jog from a sprint, yoga from hot yoga, etc.
 // Points = pts_per_hour × (duration / 60) — computed by our code, not the AI.
 
-const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, pick the most accurate workout_type from the list below and set pts_per_hour to match the actual effort. Return ONLY valid JSON with no markdown, no explanation.
+const SYSTEM_PROMPT = `You are a fitness effort assessor. Given a workout description, return ONLY valid JSON with no markdown, no explanation.
 
-WORKOUT TYPE SLUGS AND DEFAULT RATES (pts/hr):
+DISTANCE-BASED ACTIVITIES (1 pt per mile — use "miles" field, NOT pts_per_hour):
+  Types: running, jogging, brisk-walk, easy-walk, hiking, moderate-hiking, golf-walking
+  Always return "miles". Estimate from pace if not stated:
+    easy-walk 2.5 mph | brisk-walk 3.5 mph | jogging 5 mph
+    running: easy 5 mph, moderate 6.5 mph, fast 8+ mph
+    hiking 2 mph | golf-walking ~4.5 miles per round (3–5 hr)
+  Format: {"workout_type":"running","duration_minutes":30,"miles":3.2,"points":3.2,"summary":"30-min run, ~3.2 miles"}
+
+ALL OTHER SLUGS (pts/hr × duration):
 0:    meditation, sauna, cold-plunge, breathwork
 0.5:  golf-cart, golf-simulator, golf-putting, stretching, light-recovery
-1:    driving-range, easy-walk, gentle-yoga, recovery-ride, physical-therapy
-2:    golf-walking, brisk-walk, hiking, dance, kayaking, easy-elliptical
+1:    driving-range, gentle-yoga, recovery-ride, physical-therapy
 4:    pilates, barre, core-workout, incline-walk, bodyweight
-6:    jogging, stairmaster, rowing, swimming, moderate-cardio
-7:    strength, cycling, peloton, tennis-doubles, moderate-hiking
-8:    running, heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
+6:    stairmaster, rowing, swimming, moderate-cardio
+7:    strength, cycling, peloton, tennis-doubles
+8:    heavy-strength, spin, tennis, basketball, soccer, boxing, circuit, rock-climbing, volleyball
 10:   hiit, crossfit, orangetheory, bootcamp, sprint-intervals, plyometrics, assault-bike, boxing-sparring, metcon
 12:   hyrox, spartan-race, crossfit-comp, max-effort
+Adjust ±1 based on effort cues. Format: {"workout_type":"strength","duration_minutes":45,"pts_per_hour":7,"summary":"45-min strength session"}
 
-Pick the closest slug. The pts_per_hour SHOULD match the slug's default rate above, but you may adjust ±1 based on context clues (e.g. "hard swim" → swimming at 7, "easy jog" → jogging at 5).
+GOLF (strict):
+  Cart → golf-cart, 0.5 pts/hr | Range → driving-range, 1 pts/hr | Walking course → golf-walking + miles
 
-REP-BASED EXERCISES — estimate duration when none is given:
-  ~1 min per 10 reps. 50 sit-ups → 5 min, core-workout, 4 pts/hr.
-  50 push-ups → 5 min, bodyweight, 4. 100 burpees → 15 min, hiit, 10.
+REP-BASED: ~1 min per 10 reps. 50 push-ups → 5 min bodyweight at 4 pts/hr.
 
-GOLF RULES (strict):
-  Golf with cart → golf-cart, 0.5 pts/hr
-  Driving range → driving-range, 1 pts/hr
-  Golf walking the course → golf-walking, 2 pts/hr
-
-RETURN FORMAT (raw JSON only):
-{"workout_type":"running","duration_minutes":45,"pts_per_hour":8,"summary":"45-min run at moderate pace"}
-
-CLARIFICATION — only ask when BOTH are true:
-  1. Effort level is genuinely ambiguous (not just missing duration)
-  2. Score difference between interpretations exceeds 10 pts total
-
-When needed:
+CLARIFICATION — only when effort is genuinely ambiguous AND score diff > 10 pts:
 {"needs_clarification":true,"question":"...","options":["Option A","Option B"]}
-
-Never ask about duration — estimate it. Never ask for activities with obvious effort levels.`
+Never ask about duration — estimate it.`
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -131,9 +125,21 @@ export async function POST(request: Request) {
     const workoutType: WorkoutType = (VALID_SLUGS.includes(rawType as WorkoutType) ? rawType : TYPE_ALIASES[rawType]) as WorkoutType ?? 'moderate-cardio'
 
     const durationMinutes = Math.max(1, Math.min(480, Math.round(parsed.duration_minutes || 30)))
-    const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || 7))
 
-    // Points from rate — our code computes this, AI only provides the rate
+    // Distance-based scoring: 1 pt/mile
+    if (parsed.miles != null && isDistanceBased(workoutType)) {
+      const miles = Math.max(0.1, Math.min(200, Number(parsed.miles)))
+      const points = calculateDistancePoints(miles)
+      return NextResponse.json({
+        workout_type: workoutType,
+        duration_minutes: durationMinutes,
+        miles,
+        points,
+        summary: parsed.summary || description,
+      })
+    }
+
+    const ptsPerHour = Math.max(1, Math.min(16, Number(parsed.pts_per_hour) || 7))
     const points = Math.max(1, Math.round(ptsPerHour * (durationMinutes / 60)))
 
     return NextResponse.json({

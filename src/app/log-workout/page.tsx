@@ -3,7 +3,7 @@
 import { useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WORKOUT_TYPES, calculatePoints, getPtsPerHour } from '@/lib/points'
+import { WORKOUT_TYPES, calculatePoints, getPtsPerHour, isDistanceBased, calculateDistancePoints } from '@/lib/points'
 import type { WorkoutType } from '@/lib/points'
 
 const PROOF_TYPES = [
@@ -13,14 +13,14 @@ const PROOF_TYPES = [
   { value: 'other', label: 'Other', emoji: '📎' },
 ]
 
-const TIER_GROUPS = [
+const TIER_GROUPS: Array<{ label: string; tier: number; distance?: boolean }> = [
   { label: '💀 12 pts/hr', tier: 12 },
   { label: '🔥 10 pts/hr', tier: 10 },
   { label: '⚡ 8 pts/hr',  tier: 8 },
   { label: '🏋️ 7 pts/hr',  tier: 7 },
   { label: '🚣 6 pts/hr',  tier: 6 },
   { label: '💪 4 pts/hr',  tier: 4 },
-  { label: '🚶 2 pts/hr',  tier: 2 },
+  { label: '📍 1 pt/mile', tier: 99, distance: true },
   { label: '🐕 1 pt/hr',   tier: 1 },
   { label: '⛳ 0.5 pts/hr', tier: 0.5 },
   { label: '🧘 0 pts',     tier: 0 },
@@ -29,7 +29,8 @@ const TIER_GROUPS = [
 interface ParsedWorkout {
   workout_type: WorkoutType
   duration_minutes: number
-  pts_per_hour: number  // AI-assessed effort rate
+  pts_per_hour?: number
+  miles?: number
   points: number
   summary: string
 }
@@ -71,6 +72,7 @@ function LogWorkoutInner() {
   // Detailed log state
   const [workoutType, setWorkoutType] = useState<WorkoutType>(paramType)
   const [duration, setDuration] = useState(paramDuration)
+  const [miles, setMiles] = useState(0)
   const [notes, setNotes] = useState(paramNotes)
 
   // Shared state
@@ -81,7 +83,10 @@ function LogWorkoutInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const detailedPoints = calculatePoints(workoutType, duration)
+  const isDistanceType = isDistanceBased(workoutType)
+  const detailedPoints = isDistanceType && miles > 0
+    ? calculateDistancePoints(miles)
+    : calculatePoints(workoutType, duration)
   const ptsPerHour = getPtsPerHour(workoutType)
 
   function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -442,13 +447,22 @@ function LogWorkoutInner() {
                       </p>
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3 text-center">
-                      <p className="text-lg font-bold text-white">{parsed.duration_minutes}m</p>
-                      <p className="text-xs text-gray-400 mt-1">Duration</p>
+                      {parsed.miles != null ? (
+                        <>
+                          <p className="text-lg font-bold text-white">{parsed.miles}mi</p>
+                          <p className="text-xs text-gray-400 mt-1">Distance</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-white">{parsed.duration_minutes}m</p>
+                          <p className="text-xs text-gray-400 mt-1">Duration</p>
+                        </>
+                      )}
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold text-green-400">{parsed.points}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {parsed.pts_per_hour} pts/hr
+                        {parsed.miles != null ? '1 pt/mile' : `${parsed.pts_per_hour} pts/hr`}
                       </p>
                     </div>
                   </div>
@@ -461,7 +475,10 @@ function LogWorkoutInner() {
                         value={parsed.workout_type}
                         onChange={e => {
                           const newType = e.target.value as WorkoutType
-                          setParsed({ ...parsed, workout_type: newType, points: Math.round(parsed.pts_per_hour * (parsed.duration_minutes / 60)) })
+                          const pts = isDistanceBased(newType) && parsed.miles != null
+                            ? calculateDistancePoints(parsed.miles)
+                            : Math.round((parsed.pts_per_hour ?? 7) * (parsed.duration_minutes / 60))
+                          setParsed({ ...parsed, workout_type: newType, points: pts })
                         }}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none"
                       >
@@ -470,40 +487,62 @@ function LogWorkoutInner() {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Duration (min)</label>
-                      <input
-                        type="number"
-                        value={parsed.duration_minutes}
-                        onChange={e => {
-                          const raw = e.target.value
-                          const d = parseInt(raw, 10)
-                          if (!raw || isNaN(d) || d < 1) return
-                          setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.round(parsed.pts_per_hour * (Math.min(480, d) / 60)) })
-                        }}
-                        onBlur={() => {
-                          const d = Math.max(1, Math.min(480, parsed.duration_minutes))
-                          setParsed({ ...parsed, duration_minutes: d, points: Math.round(parsed.pts_per_hour * (d / 60)) })
-                        }}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-                      />
-                      <div className="flex gap-1.5 mt-2">
-                        {[20, 30, 45, 60, 90].map(d => (
-                          <button
-                            key={d}
-                            type="button"
-                            onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.round(parsed.pts_per_hour * (d / 60)) })}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              parsed.duration_minutes === d
-                                ? 'bg-green-500 text-black'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                          >
-                            {d}m
-                          </button>
-                        ))}
+                    {parsed.miles != null ? (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Distance (miles)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={parsed.miles}
+                          onChange={e => {
+                            const m = parseFloat(e.target.value) || 0
+                            if (m <= 0) return
+                            setParsed({ ...parsed, miles: m, points: calculateDistancePoints(m) })
+                          }}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                        />
+                        <div className="flex gap-1.5 mt-2">
+                          {[1, 2, 3, 5, 10].map(m => (
+                            <button key={m} type="button"
+                              onClick={() => setParsed({ ...parsed, miles: m, points: calculateDistancePoints(m) })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                parsed.miles === m ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              }`}
+                            >{m}mi</button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Duration (min)</label>
+                        <input
+                          type="number"
+                          value={parsed.duration_minutes}
+                          onChange={e => {
+                            const raw = e.target.value
+                            const d = parseInt(raw, 10)
+                            if (!raw || isNaN(d) || d < 1) return
+                            setParsed({ ...parsed, duration_minutes: Math.min(480, d), points: Math.round((parsed.pts_per_hour ?? 7) * (Math.min(480, d) / 60)) })
+                          }}
+                          onBlur={() => {
+                            const d = Math.max(1, Math.min(480, parsed.duration_minutes))
+                            setParsed({ ...parsed, duration_minutes: d, points: Math.round((parsed.pts_per_hour ?? 7) * (d / 60)) })
+                          }}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                        />
+                        <div className="flex gap-1.5 mt-2">
+                          {[20, 30, 45, 60, 90].map(d => (
+                            <button key={d} type="button"
+                              onClick={() => setParsed({ ...parsed, duration_minutes: d, points: Math.round((parsed.pts_per_hour ?? 7) * (d / 60)) })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                parsed.duration_minutes === d ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              }`}
+                            >{d}m</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -550,8 +589,13 @@ function LogWorkoutInner() {
             {/* Points preview */}
             <div className="bg-green-900/20 border border-green-700/40 rounded-2xl p-4 text-center">
               <p className="text-gray-400 text-sm">You'll earn</p>
-              <p className="text-4xl font-bold text-green-400">{detailedPoints} pts</p>
-              <p className="text-gray-500 text-xs mt-1">{ptsPerHour} pts/hour · scales with duration</p>
+              {isDistanceType && miles === 0
+                ? <p className="text-gray-500 text-xl mt-1">Enter miles below</p>
+                : <p className="text-4xl font-bold text-green-400">{detailedPoints} pts</p>
+              }
+              <p className="text-gray-500 text-xs mt-1">
+                {isDistanceType ? '📍 1 pt per mile — enter your distance' : `${ptsPerHour} pts/hour · scales with duration`}
+              </p>
             </div>
 
             {/* Workout Type by pts/hr tier */}
@@ -559,7 +603,9 @@ function LogWorkoutInner() {
               <label className="block text-sm text-gray-400 mb-3">Workout Type</label>
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                 {TIER_GROUPS.map(group => {
-                  const groupTypes = WORKOUT_TYPES.filter(t => t.tier === group.tier && !('hidden' in t && t.hidden))
+                  const groupTypes = group.distance
+                    ? WORKOUT_TYPES.filter(t => isDistanceBased(t.value) && !('hidden' in t && t.hidden))
+                    : WORKOUT_TYPES.filter(t => !isDistanceBased(t.value) && t.tier === group.tier && !('hidden' in t && t.hidden))
                   if (groupTypes.length === 0) return null
                   return (
                     <div key={group.tier}>
@@ -586,6 +632,36 @@ function LogWorkoutInner() {
                 })}
               </div>
             </div>
+
+            {/* Miles input — distance-based types */}
+            {isDistanceType && (
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  Distance: <span className="text-white font-semibold">{miles > 0 ? `${miles} miles` : '—'}</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="200"
+                  value={miles || ''}
+                  onChange={e => setMiles(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="e.g. 3.5"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors text-lg"
+                />
+                <div className="grid grid-cols-5 gap-2 mt-3">
+                  {[1, 2, 3, 5, 10].map(d => (
+                    <button key={d} type="button" onClick={() => setMiles(d)}
+                      className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                        miles === d ? 'bg-green-500 text-black' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      {d}mi
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Duration */}
             <div>

@@ -100,6 +100,20 @@ export function getPtsPerHour(workoutType: WorkoutType): number {
   return WORKOUT_TYPES.find(t => t.value === workoutType)?.ptsPerHour ?? 4
 }
 
+// Distance-based scoring: 1 pt per mile (walking, running, golf walking)
+export const DISTANCE_BASED_TYPES = new Set<WorkoutType>([
+  'running', 'jogging', 'brisk-walk', 'easy-walk',
+  'hiking', 'moderate-hiking', 'golf-walking', 'walking',
+])
+
+export function isDistanceBased(type: WorkoutType): boolean {
+  return DISTANCE_BASED_TYPES.has(type)
+}
+
+export function calculateDistancePoints(miles: number): number {
+  return Math.round(miles * 10) / 10
+}
+
 export const WEEKLY_GOAL = 50
 
 export function getWeekStart(date: Date = new Date()): Date {
