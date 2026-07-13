@@ -139,9 +139,13 @@ function LogWorkoutInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to analyze')
-      const pph = data.pts_per_hour || getPtsPerHour(data.workout_type)
-      const pts = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
-      setParsed({ ...data, pts_per_hour: pph, points: pts })
+      if (data.miles != null) {
+        setParsed({ ...data, points: calculateDistancePoints(data.miles) })
+      } else {
+        const pph = data.pts_per_hour || getPtsPerHour(data.workout_type)
+        const pts = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
+        setParsed({ ...data, pts_per_hour: pph, points: pts })
+      }
 
       // Auto-set proof to the scanned image (replace any existing proof)
       setProofFiles([scanFile])
