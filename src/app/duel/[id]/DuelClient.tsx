@@ -296,6 +296,9 @@ export default function DuelClient({
   const [bodySuccess, setBodySuccess] = useState(false)
   const frontPhotoRef = useRef<HTMLInputElement>(null)
   const sidePhotoRef = useRef<HTMLInputElement>(null)
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  const [progressImageUrl, setProgressImageUrl] = useState<string | null>(null)
+  const [buildingProgress, setBuildingProgress] = useState(false)
 
   const isCompetitorA = currentUserId === duel.competitor_a_id
   const isCompetitorB = currentUserId === duel.competitor_b_id
@@ -561,6 +564,118 @@ export default function DuelClient({
     const reader = new FileReader()
     reader.onload = () => setSidePreview(reader.result as string)
     reader.readAsDataURL(compressed)
+  }
+
+  async function buildProgressImage(first: WeeklyPhoto, latest: WeeklyPhoto) {
+    setBuildingProgress(true)
+    const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const src = (path: string) => `${supaUrl}/storage/v1/object/public/duel-proofs/${path}`
+
+    const fetchImg = async (path: string | null | undefined): Promise<HTMLImageElement | null> => {
+      if (!path) return null
+      try {
+        const res = await fetch(src(path))
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        return await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => resolve(img)
+          img.onerror = reject
+          img.src = url
+        })
+      } catch { return null }
+    }
+
+    const [ff, fl, sf, sl] = await Promise.all([
+      fetchImg(first.front_photo_url),
+      fetchImg(latest.front_photo_url),
+      fetchImg(first.side_photo_url),
+      fetchImg(latest.side_photo_url),
+    ])
+
+    const CELL = 460
+    const CELL_H = Math.round(CELL * 4 / 3)
+    const PAD = 24
+    const GAP = 14
+    const SECTION_H = 44
+    const LABEL_H = 36
+    const HEADER_H = 80
+    const W = PAD * 2 + CELL * 2 + GAP
+    const H = PAD + HEADER_H + (SECTION_H + CELL_H + LABEL_H + GAP) * 2 - GAP + PAD
+
+    const canvas = document.createElement('canvas')
+    canvas.width = W
+    canvas.height = H
+    const ctx = canvas.getContext('2d')!
+
+    ctx.fillStyle = '#0a0a0a'
+    ctx.fillRect(0, 0, W, H)
+
+    // Header
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('Progress Comparison', W / 2, PAD + 40)
+    ctx.fillStyle = '#555'
+    ctx.font = '24px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.fillText(`${first.check_in_week}  →  ${latest.check_in_week}`, W / 2, PAD + 70)
+
+    const drawCover = (img: HTMLImageElement | null, x: number, y: number, w: number, h: number) => {
+      ctx.save()
+      const r = 18
+      ctx.beginPath()
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r)
+      ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+      ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r)
+      ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r)
+      ctx.closePath()
+      ctx.clip()
+      if (!img) {
+        ctx.fillStyle = '#1a1a1a'
+        ctx.fillRect(x, y, w, h)
+      } else {
+        const scale = Math.max(w / img.width, h / img.height)
+        const sw = w / scale, sh = h / scale
+        const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h)
+      }
+      ctx.restore()
+    }
+
+    const x1 = PAD, x2 = PAD + CELL + GAP
+    const rows: [string, HTMLImageElement | null, HTMLImageElement | null][] = [
+      ['FRONT VIEW', ff, fl],
+      ['SIDE VIEW', sf, sl],
+    ]
+
+    let rowY = PAD + HEADER_H
+    for (const [label, imgFirst, imgLatest] of rows) {
+      // Section label
+      ctx.fillStyle = '#888'
+      ctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText(label, x1, rowY + 30)
+      rowY += SECTION_H
+
+      // Photos
+      drawCover(imgFirst, x1, rowY, CELL, CELL_H)
+      drawCover(imgLatest, x2, rowY, CELL, CELL_H)
+
+      // Sub-labels
+      rowY += CELL_H + 6
+      ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#555'
+      ctx.fillText('FIRST', x1 + CELL / 2, rowY + 24)
+      ctx.fillStyle = '#22c55e'
+      ctx.fillText('LATEST', x2 + CELL / 2, rowY + 24)
+      rowY += LABEL_H + GAP
+    }
+
+    setProgressImageUrl(canvas.toDataURL('image/jpeg', 0.93))
+    setShowProgressModal(true)
+    setBuildingProgress(false)
   }
 
   async function submitBodyCheckIn() {
@@ -1300,9 +1415,18 @@ export default function DuelClient({
                   {/* Progress comparison — only when 2+ check-ins */}
                   {hasComparison && (
                     <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
-                      <div>
-                        <p className="text-white font-semibold text-sm">📊 Progress Comparison</p>
-                        <p className="text-gray-500 text-xs mt-0.5">{first.check_in_week} → {latest.check_in_week}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-white font-semibold text-sm">📊 Progress Comparison</p>
+                          <p className="text-gray-500 text-xs mt-0.5">{first.check_in_week} → {latest.check_in_week}</p>
+                        </div>
+                        <button
+                          onClick={() => buildProgressImage(first, latest)}
+                          disabled={buildingProgress}
+                          className="flex-shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          {buildingProgress ? 'Building…' : '⬛ View Combined'}
+                        </button>
                       </div>
                       {/* Front view */}
                       {(first.front_photo_url || latest.front_photo_url) && (
@@ -1543,6 +1667,39 @@ export default function DuelClient({
             </button>
             {!liveHasMeals && (
               <p className="text-gray-600 text-xs text-center mt-2">Log all meals to submit</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Progress comparison full-screen modal */}
+      {showProgressModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+          onClick={() => setShowProgressModal(false)}
+        >
+          <div className="flex items-center justify-between px-5 pt-14 pb-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <p className="text-white font-semibold text-base">Progress Comparison</p>
+            <button onClick={() => setShowProgressModal(false)} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+          </div>
+          <div className="flex-1 overflow-auto flex flex-col items-center px-4 pb-8" onClick={e => e.stopPropagation()}>
+            {progressImageUrl && (
+              <>
+                <img
+                  src={progressImageUrl}
+                  className="w-full max-w-lg rounded-2xl"
+                  alt="Progress comparison"
+                />
+                <p className="text-gray-600 text-xs mt-3 text-center">Long-press the image to save to your camera roll</p>
+                <a
+                  href={progressImageUrl}
+                  download="progress-comparison.jpg"
+                  className="mt-4 bg-green-500 hover:bg-green-400 text-black font-bold px-8 py-3 rounded-xl text-sm"
+                  onClick={e => e.stopPropagation()}
+                >
+                  ↓ Download
+                </a>
+              </>
             )}
           </div>
         </div>
