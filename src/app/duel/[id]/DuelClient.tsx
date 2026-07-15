@@ -491,13 +491,34 @@ export default function DuelClient({
     }
   }
 
-  function handleWeighPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function compressImage(file: File, maxPx = 1920, quality = 0.85): Promise<File> {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(
+          (blob) => resolve(new File([blob!], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })),
+          'image/jpeg', quality
+        )
+      }
+      img.src = url
+    })
+  }
+
+  async function handleWeighPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setWeighPhoto(file)
+    const compressed = await compressImage(file)
+    setWeighPhoto(compressed)
     const reader = new FileReader()
     reader.onload = () => setWeighPhotoPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(compressed)
   }
 
   async function submitUpdateWeights() {
@@ -522,22 +543,24 @@ export default function DuelClient({
     }
   }
 
-  function handleFrontPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFrontPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setFrontPhoto(file)
+    const compressed = await compressImage(file)
+    setFrontPhoto(compressed)
     const reader = new FileReader()
     reader.onload = () => setFrontPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(compressed)
   }
 
-  function handleSidePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleSidePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setSidePhoto(file)
+    const compressed = await compressImage(file)
+    setSidePhoto(compressed)
     const reader = new FileReader()
     reader.onload = () => setSidePreview(reader.result as string)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(compressed)
   }
 
   async function submitBodyCheckIn() {
