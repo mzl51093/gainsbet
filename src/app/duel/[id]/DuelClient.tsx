@@ -1286,40 +1286,104 @@ export default function DuelClient({
               </button>
             </div>
 
-            {/* Previous body check-ins */}
-            {weeklyPhotos.filter(p => p.user_id === currentUserId).length > 0 && (
-              <div className="space-y-2">
-                <p className="text-gray-500 text-xs font-semibold">YOUR BODY CHECK-INS</p>
-                {weeklyPhotos.filter(p => p.user_id === currentUserId).map(bp => (
-                  <div key={bp.id} className="bg-gray-900 rounded-xl p-3 border border-gray-800">
-                    <p className="text-white text-xs font-medium mb-2">Week of {bp.check_in_week}</p>
-                    <div className="flex gap-2">
-                      {bp.front_photo_url && (
-                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
-                          target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.front_photo_url}`}
-                            className="w-16 h-20 rounded-lg object-cover border border-gray-700"
-                            alt="front"
-                          />
-                        </a>
+            {/* Body check-ins: progress comparison + history */}
+            {(() => {
+              const myPhotos = weeklyPhotos.filter(p => p.user_id === currentUserId)
+              if (myPhotos.length === 0) return null
+              const latest = myPhotos[0]
+              const first = myPhotos[myPhotos.length - 1]
+              const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+              const imgUrl = (path: string) => `${supaUrl}/storage/v1/object/public/duel-proofs/${path}`
+              const hasComparison = myPhotos.length >= 2
+              return (
+                <div className="space-y-3">
+                  {/* Progress comparison — only when 2+ check-ins */}
+                  {hasComparison && (
+                    <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
+                      <div>
+                        <p className="text-white font-semibold text-sm">📊 Progress Comparison</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{first.check_in_week} → {latest.check_in_week}</p>
+                      </div>
+                      {/* Front view */}
+                      {(first.front_photo_url || latest.front_photo_url) && (
+                        <div>
+                          <p className="text-gray-400 text-xs font-semibold mb-2 uppercase tracking-wide">Front View</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <p className="text-gray-600 text-xs text-center">First</p>
+                              {first.front_photo_url ? (
+                                <a href={imgUrl(first.front_photo_url)} target="_blank" rel="noopener noreferrer">
+                                  <img src={imgUrl(first.front_photo_url)} className="w-full aspect-[3/4] rounded-xl object-cover border border-gray-700" alt="first front" />
+                                </a>
+                              ) : <div className="w-full aspect-[3/4] rounded-xl bg-gray-800 border border-gray-700" />}
+                              <p className="text-gray-600 text-xs text-center">{first.check_in_week}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-gray-600 text-xs text-center">Latest</p>
+                              {latest.front_photo_url ? (
+                                <a href={imgUrl(latest.front_photo_url)} target="_blank" rel="noopener noreferrer">
+                                  <img src={imgUrl(latest.front_photo_url)} className="w-full aspect-[3/4] rounded-xl object-cover border border-green-700" alt="latest front" />
+                                </a>
+                              ) : <div className="w-full aspect-[3/4] rounded-xl bg-gray-800 border border-gray-700" />}
+                              <p className="text-gray-600 text-xs text-center">{latest.check_in_week}</p>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      {bp.side_photo_url && (
-                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
-                          target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/duel-proofs/${bp.side_photo_url}`}
-                            className="w-16 h-20 rounded-lg object-cover border border-gray-700"
-                            alt="side"
-                          />
-                        </a>
+                      {/* Side view */}
+                      {(first.side_photo_url || latest.side_photo_url) && (
+                        <div>
+                          <p className="text-gray-400 text-xs font-semibold mb-2 uppercase tracking-wide">Side View</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <p className="text-gray-600 text-xs text-center">First</p>
+                              {first.side_photo_url ? (
+                                <a href={imgUrl(first.side_photo_url)} target="_blank" rel="noopener noreferrer">
+                                  <img src={imgUrl(first.side_photo_url)} className="w-full aspect-[3/4] rounded-xl object-cover border border-gray-700" alt="first side" />
+                                </a>
+                              ) : <div className="w-full aspect-[3/4] rounded-xl bg-gray-800 border border-gray-700" />}
+                              <p className="text-gray-600 text-xs text-center">{first.check_in_week}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-gray-600 text-xs text-center">Latest</p>
+                              {latest.side_photo_url ? (
+                                <a href={imgUrl(latest.side_photo_url)} target="_blank" rel="noopener noreferrer">
+                                  <img src={imgUrl(latest.side_photo_url)} className="w-full aspect-[3/4] rounded-xl object-cover border border-green-700" alt="latest side" />
+                                </a>
+                              ) : <div className="w-full aspect-[3/4] rounded-xl bg-gray-800 border border-gray-700" />}
+                              <p className="text-gray-600 text-xs text-center">{latest.check_in_week}</p>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    {bp.notes && <p className="text-gray-600 text-xs mt-1 italic">"{bp.notes}"</p>}
+                  )}
+
+                  {/* Full history list */}
+                  <div className="space-y-2">
+                    <p className="text-gray-500 text-xs font-semibold">YOUR BODY CHECK-INS</p>
+                    {myPhotos.map(bp => (
+                      <div key={bp.id} className="bg-gray-900 rounded-xl p-3 border border-gray-800">
+                        <p className="text-white text-xs font-medium mb-2">Week of {bp.check_in_week}</p>
+                        <div className="flex gap-2">
+                          {bp.front_photo_url && (
+                            <a href={imgUrl(bp.front_photo_url)} target="_blank" rel="noopener noreferrer">
+                              <img src={imgUrl(bp.front_photo_url)} className="w-16 h-20 rounded-lg object-cover border border-gray-700" alt="front" />
+                            </a>
+                          )}
+                          {bp.side_photo_url && (
+                            <a href={imgUrl(bp.side_photo_url)} target="_blank" rel="noopener noreferrer">
+                              <img src={imgUrl(bp.side_photo_url)} className="w-16 h-20 rounded-lg object-cover border border-gray-700" alt="side" />
+                            </a>
+                          )}
+                        </div>
+                        {bp.notes && <p className="text-gray-600 text-xs mt-1 italic">"{bp.notes}"</p>}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )
+            })()}
 
             <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
               <h3 className="text-white font-semibold text-sm">Log Your Weight</h3>
