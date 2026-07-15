@@ -544,21 +544,26 @@ export default function DuelClient({
     if (!frontPhoto || !sidePhoto) { setBodyError('Both front and side photos required'); return }
     setSubmittingBody(true)
     setBodyError('')
-    const fd = new FormData()
-    fd.set('front', frontPhoto)
-    fd.set('side', sidePhoto)
-    if (bodyNotes.trim()) fd.set('notes', bodyNotes.trim())
-    const res = await fetch(`/api/duel/${duelId}/body-checkin`, { method: 'POST', body: fd })
-    setSubmittingBody(false)
-    if (res.ok) {
-      setBodySuccess(true)
-      setFrontPhoto(null); setSidePhoto(null)
-      setFrontPreview(null); setSidePreview(null)
-      setBodyNotes('')
-      router.refresh()
-    } else {
-      const d = await res.json()
-      setBodyError(d.error || 'Failed to submit')
+    try {
+      const fd = new FormData()
+      fd.set('front', frontPhoto)
+      fd.set('side', sidePhoto)
+      if (bodyNotes.trim()) fd.set('notes', bodyNotes.trim())
+      const res = await fetch(`/api/duel/${duelId}/body-checkin`, { method: 'POST', body: fd })
+      if (res.ok) {
+        setBodySuccess(true)
+        setFrontPhoto(null); setSidePhoto(null)
+        setFrontPreview(null); setSidePreview(null)
+        setBodyNotes('')
+        router.refresh()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setBodyError(d.error || 'Upload failed — please try again')
+      }
+    } catch {
+      setBodyError('Network error — please try again')
+    } finally {
+      setSubmittingBody(false)
     }
   }
 
@@ -1203,7 +1208,7 @@ export default function DuelClient({
                 {/* Front photo */}
                 <div>
                   <p className="text-gray-400 text-xs mb-2">Front view *</p>
-                  <input ref={frontPhotoRef} type="file" accept="image/*" capture="environment"
+                  <input ref={frontPhotoRef} type="file" accept="image/*"
                     onChange={handleFrontPhotoChange} className="hidden" />
                   {frontPreview ? (
                     <div className="relative">
@@ -1223,7 +1228,7 @@ export default function DuelClient({
                 {/* Side photo */}
                 <div>
                   <p className="text-gray-400 text-xs mb-2">Side view *</p>
-                  <input ref={sidePhotoRef} type="file" accept="image/*" capture="environment"
+                  <input ref={sidePhotoRef} type="file" accept="image/*"
                     onChange={handleSidePhotoChange} className="hidden" />
                   {sidePreview ? (
                     <div className="relative">
@@ -1319,7 +1324,7 @@ export default function DuelClient({
               </div>
               <div>
                 <label className="text-gray-400 text-xs block mb-1.5">Photo proof (optional)</label>
-                <input ref={weighPhotoRef} type="file" accept="image/*" capture="environment"
+                <input ref={weighPhotoRef} type="file" accept="image/*"
                   onChange={handleWeighPhotoChange} className="hidden" />
                 {weighPhotoPreview ? (
                   <div className="relative w-24 h-24">
