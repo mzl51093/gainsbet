@@ -1690,15 +1690,28 @@ export default function DuelClient({
                   className="w-full max-w-lg rounded-2xl"
                   alt="Progress comparison"
                 />
-                <p className="text-gray-600 text-xs mt-3 text-center">Long-press the image to save to your camera roll</p>
-                <a
-                  href={progressImageUrl}
-                  download="progress-comparison.jpg"
+                <button
                   className="mt-4 bg-green-500 hover:bg-green-400 text-black font-bold px-8 py-3 rounded-xl text-sm"
-                  onClick={e => e.stopPropagation()}
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    const dataUrl = progressImageUrl!
+                    const res = await fetch(dataUrl)
+                    const blob = await res.blob()
+                    const file = new File([blob], 'progress-comparison.jpg', { type: 'image/jpeg' })
+                    if (navigator.canShare?.({ files: [file] })) {
+                      await navigator.share({ files: [file], title: 'Progress Comparison' })
+                    } else {
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = 'progress-comparison.jpg'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }
+                  }}
                 >
-                  ↓ Download
-                </a>
+                  ↓ Save Photo
+                </button>
               </>
             )}
           </div>
