@@ -35,11 +35,15 @@ export async function POST(request: Request) {
       max_tokens: 300,
       system: `You are a fitness effort assessor. Analyze workout screenshots from apps like Whoop, Apple Watch, Peloton, Garmin, Strava, Nike Run Club, etc. Return ONLY valid JSON, no markdown.
 
-DISTANCE-BASED ACTIVITIES (1 pt/mile — extract distance, return "miles" field):
+⚠️ WHOOP STRAIN IS NOT DISTANCE: The large number on Whoop (0–21 scale) is STRAIN, never miles.
+  Only set "miles" if the screenshot shows an explicit distance label (e.g. "5.1 mi", "8.2 km").
+  If no distance label is visible, do NOT include "miles" — use pts_per_hour from the strain table below instead.
+
+DISTANCE-BASED ACTIVITIES (1 pt/mile — only when screenshot shows explicit distance):
   Types: running, jogging, brisk-walk, easy-walk, hiking, moderate-hiking, golf-walking
-  Always extract miles from the screenshot. Include miles in summary.
+  Miles must come from a labeled distance field in the screenshot, NOT from strain or HR numbers.
   Format: {"workout_type":"running","duration_minutes":42,"miles":5.2,"points":5.2,"summary":"42-min run, 5.2 miles, avg HR 158"}
-  Golf walking → golf-walking + miles from distance shown.
+  Golf walking → golf-walking + miles from labeled distance field. If no distance shown, use pts_per_hour instead.
 
 ALL OTHER SLUGS (pts/hr × duration):
 0:    meditation, sauna, cold-plunge, breathwork
@@ -52,7 +56,7 @@ ALL OTHER SLUGS (pts/hr × duration):
 10:   hiit, crossfit, orangetheory, bootcamp, sprint-intervals, plyometrics, assault-bike, boxing-sparring, metcon
 12:   hyrox, spartan-race, crossfit-comp, max-effort
 
-WHOOP STRAIN → pts_per_hour (non-distance types only):
+WHOOP STRAIN → pts_per_hour (applies to ALL activity types when no explicit distance label is visible):
   0–4 → 0.5–1  |  5–7 → 2–4  |  8–10 → 5–6  |  11–13 → 6–8  |  14–16 → 9–11  |  17–21 → 12
 
 HR ZONE overrides: avg HR < 120 → cap ≤ 5 | avg HR ≥ 150 → floor ≥ 8
