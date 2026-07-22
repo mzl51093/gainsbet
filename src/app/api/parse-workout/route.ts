@@ -127,8 +127,21 @@ export async function POST(request: Request) {
     const durationMinutes = Math.max(1, Math.min(480, Math.round(parsed.duration_minutes || 30)))
 
     // Distance-based scoring: 1 pt/mile
-    if (parsed.miles != null && isDistanceBased(workoutType)) {
-      const miles = Math.max(0.1, Math.min(200, Number(parsed.miles)))
+    // Always go through this path for distance types — estimate pace if AI omitted miles
+    if (isDistanceBased(workoutType)) {
+      let miles: number
+      if (parsed.miles != null && Number(parsed.miles) > 0) {
+        miles = Math.max(0.1, Math.min(200, Number(parsed.miles)))
+      } else {
+        // AI didn't return miles — estimate from typical pace × duration
+        const PACE_MPH: Partial<Record<WorkoutType, number>> = {
+          'easy-walk': 2.5, 'brisk-walk': 3.5, 'walking': 2.5,
+          'jogging': 5, 'running': 6.5,
+          'hiking': 2, 'moderate-hiking': 2.5, 'golf-walking': 3,
+        }
+        const mph = PACE_MPH[workoutType] ?? 3
+        miles = Math.round(mph * (durationMinutes / 60) * 10) / 10
+      }
       const points = calculateDistancePoints(miles)
       return NextResponse.json({
         workout_type: workoutType,
