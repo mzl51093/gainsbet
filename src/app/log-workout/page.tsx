@@ -179,9 +179,13 @@ function LogWorkoutInner() {
       }
 
       setClarification(null)
-      const pph = data.pts_per_hour || 7
-      const basePoints = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
-      setParsed({ ...data, pts_per_hour: pph, points: basePoints })
+      if (data.miles != null) {
+        setParsed({ ...data, points: calculateDistancePoints(data.miles) })
+      } else {
+        const pph = data.pts_per_hour || 7
+        const basePoints = Math.max(1, Math.round(pph * (data.duration_minutes / 60)))
+        setParsed({ ...data, pts_per_hour: pph, points: basePoints })
+      }
     } catch (err: any) {
       setParseError(err.message || 'Could not parse workout. Try again or use Detailed log.')
     } finally {
