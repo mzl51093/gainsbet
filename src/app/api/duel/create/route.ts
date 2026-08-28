@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     name,
+    format,
     competitorAId,
     competitorBId,
     watcherIds,
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     .from('duel_challenges')
     .insert({
       name: name.trim(),
+      format: format === 'daily-streak' ? 'daily-streak' : 'classic',
       created_by: user.id,
       competitor_a_id: competitorAId,
       competitor_b_id: competitorBId,

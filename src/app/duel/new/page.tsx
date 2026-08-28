@@ -29,6 +29,7 @@ export default function NewDuelPage() {
   const [startWeightB, setStartWeightB] = useState('')
   const [targetWeightB, setTargetWeightB] = useState('')
 
+  const [format, setFormat] = useState<'classic' | 'daily-streak'>('classic')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -81,6 +82,7 @@ export default function NewDuelPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          format,
           competitorAId,
           competitorBId,
           watcherIds,
@@ -139,6 +141,34 @@ export default function NewDuelPage() {
                 maxLength={80}
               />
             </label>
+          </div>
+
+          {/* Format */}
+          <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
+            <div>
+              <span className="text-white font-semibold text-sm block mb-1">Format *</span>
+              <p className="text-gray-500 text-xs mb-3">Choose how points are scored.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'classic', label: '⚔️ Classic', desc: 'Workout pts + weight loss + healthy days' },
+                { value: 'daily-streak', label: '📅 Daily Streak', desc: '1 pt workout day · 1 pt healthy day · 2 pts/day max' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFormat(opt.value)}
+                  className={`rounded-xl p-3 text-left border transition-colors ${
+                    format === opt.value
+                      ? 'bg-green-900/30 border-green-600 text-white'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                  }`}
+                >
+                  <p className="font-semibold text-sm">{opt.label}</p>
+                  <p className="text-xs mt-1 text-gray-500">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Competitors */}

@@ -103,6 +103,7 @@ interface DuelChallenge {
   lowest_weight_b?: number | null
   target_weight_a?: number | null
   target_weight_b?: number | null
+  format?: string | null
   profileA?: Profile
   profileB?: Profile
   creator?: Profile
@@ -209,6 +210,25 @@ function computeScores(
   return { workoutPts, weightProgressPct, weightLossPts, lbsLost, lbsToTarget, healthyDayPts, total }
 }
 
+function computeDailyStreakScores(
+  workouts: Workout[],
+  checkIns: CheckIn[],
+  startDate: string,
+  endDate: string,
+) {
+  const workoutDays = new Set(
+    workouts
+      .filter(w => w.duration_minutes >= 30)
+      .map(w => w.logged_at.split('T')[0])
+  ).size
+  const healthyDays = checkIns.filter(c => c.earned_bonus).length
+  const total = workoutDays + healthyDays
+  const totalDays = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1
+  const daysElapsed = Math.max(0, Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000))
+  const maxPossible = Math.min(daysElapsed + 1, totalDays) * 2
+  return { workoutDays, healthyDays, total, totalDays, maxPossible }
+}
+
 function formatTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
@@ -309,8 +329,13 @@ export default function DuelClient({
   const profileA = duel.profileA
   const profileB = duel.profileB
 
+  const isStreakFormat = duel.format === 'daily-streak'
   const scoreA = computeScores(workoutsA, duel.starting_weight_a, duel.lowest_weight_a, duel.target_weight_a, checkInsA)
   const scoreB = computeScores(workoutsB, duel.starting_weight_b, duel.lowest_weight_b, duel.target_weight_b, checkInsB)
+  const streakScoreA = computeDailyStreakScores(workoutsA, checkInsA, duel.start_date, duel.end_date)
+  const streakScoreB = computeDailyStreakScores(workoutsB, checkInsB, duel.start_date, duel.end_date)
+  const effectiveScoreA = isStreakFormat ? { ...scoreA, total: streakScoreA.total, workoutPts: streakScoreA.workoutDays, healthyDayPts: streakScoreA.healthyDays, weightLossPts: 0 } : scoreA
+  const effectiveScoreB = isStreakFormat ? { ...scoreB, total: streakScoreB.total, workoutPts: streakScoreB.workoutDays, healthyDayPts: streakScoreB.healthyDays, weightLossPts: 0 } : scoreB
 
   const today = new Date()
   const start = new Date(duel.start_date)
@@ -335,7 +360,7 @@ export default function DuelClient({
   const streakA = computeStreak(checkInsA)
   const streakB = computeStreak(checkInsB)
 
-  const lead = scoreA.total - scoreB.total
+  const lead = effectiveScoreA.total - effectiveScoreB.total
   const aIsLeading = lead > 0
   const tied = Math.abs(lead) < 0.5
 
@@ -743,6 +768,15 @@ export default function DuelClient({
         </div>
       </div>
 
+      {/* Format badge */}
+      {isStreakFormat && (
+        <div className="bg-blue-900/20 border-b border-blue-800/30 px-4 py-2">
+          <div className="max-w-lg mx-auto">
+            <p className="text-blue-300 text-xs font-semibold">📅 Daily Streak — 1 pt per workout day (≥30 min) · 1 pt per healthy day · 2 pts/day max</p>
+          </div>
+        </div>
+      )}
+
       {/* Wager bar */}
       {duel.wager && (
         <div className="bg-yellow-900/20 border-b border-yellow-800/30 px-4 py-2.5">
@@ -826,7 +860,7 @@ export default function DuelClient({
                   {alreadyCheckedIn ? (
                     <div className="text-right">
                       <p className={`text-lg font-black ${myTodayCheckIn?.earned_bonus ? 'text-green-400' : 'text-gray-400'}`}>
-                        {myTodayCheckIn?.earned_bonus ? '✓ +10' : '✗'}
+                        {myTodayCheckIn?.earned_bonus ? (isStreakFormat ? '✓ +1' : '✓ +10') : '✗'}
                       </p>
                       <p className="text-gray-600 text-xs">
                         {myTodayCheckIn?.health_score}/200
@@ -851,7 +885,7 @@ export default function DuelClient({
                 checkInResult.earned_bonus ? 'bg-green-950/40 border-green-600/50' : 'bg-gray-900 border-gray-700'
               }`}>
                 <p className={`text-2xl font-black ${checkInResult.earned_bonus ? 'text-green-400' : 'text-gray-400'}`}>
-                  {checkInResult.earned_bonus ? '🥗 Healthy Day Bonus! +10 pts' : 'Check-in logged. No bonus today.'}
+                  {checkInResult.earned_bonus ? (isStreakFormat ? '🥗 Healthy Day! +1 pt' : '🥗 Healthy Day Bonus! +10 pts') : 'Check-in logged. No bonus today.'}
                 </p>
                 <button onClick={() => setCheckInResult(null)} className="text-gray-600 text-xs mt-2">dismiss</button>
               </div>
@@ -860,11 +894,11 @@ export default function DuelClient({
             {/* Side-by-side scorecards */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { profile: profileA, score: scoreA, workouts: workoutsA, checkIns: checkInsA,
+                { profile: profileA, score: effectiveScoreA, streakScore: streakScoreA, workouts: workoutsA, checkIns: checkInsA,
                   startW: duel.starting_weight_a, lowW: duel.lowest_weight_a, targetW: duel.target_weight_a, streak: streakA },
-                { profile: profileB, score: scoreB, workouts: workoutsB, checkIns: checkInsB,
+                { profile: profileB, score: effectiveScoreB, streakScore: streakScoreB, workouts: workoutsB, checkIns: checkInsB,
                   startW: duel.starting_weight_b, lowW: duel.lowest_weight_b, targetW: duel.target_weight_b, streak: streakB },
-              ].map(({ profile, score, workouts, checkIns, startW, lowW, targetW, streak }, idx) => {
+              ].map(({ profile, score, streakScore, workouts, checkIns, startW, lowW, targetW, streak }, idx) => {
                 const isLeader = idx === 0 ? lead > 0.5 : lead < -0.5
                 const isMe = idx === 0 ? isCompetitorA : isCompetitorB
                 const bonusDays = checkIns.filter(c => c.earned_bonus).length
@@ -884,32 +918,36 @@ export default function DuelClient({
 
                     <div className="mb-3">
                       <p className={`text-3xl font-black ${isLeader ? 'text-green-400' : 'text-white'}`}>
-                        {score.total.toFixed(1)}
+                        {isStreakFormat ? score.total : score.total.toFixed(1)}
                       </p>
-                      <p className="text-gray-500 text-xs">total pts</p>
+                      <p className="text-gray-500 text-xs">{isStreakFormat ? `of ${streakScore.maxPossible} pts` : 'total pts'}</p>
                     </div>
 
                     <div className="space-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">💪 Workout</span>
-                        <span className="text-gray-300 font-medium">{score.workoutPts}</span>
+                        <span className="text-gray-500">{isStreakFormat ? '💪 Workout Days' : '💪 Workout'}</span>
+                        <span className="text-gray-300 font-medium">{isStreakFormat ? `${streakScore.workoutDays}d` : score.workoutPts}</span>
                       </div>
+                      {!isStreakFormat && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">⚖️ Weight</span>
+                          <span className={`font-medium ${score.weightLossPts > 0 ? 'text-green-400' : 'text-gray-600'}`}>
+                            {score.weightLossPts > 0 ? `+${Math.round(score.weightLossPts)}` : '—'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
-                        <span className="text-gray-500">⚖️ Weight</span>
-                        <span className={`font-medium ${score.weightLossPts > 0 ? 'text-green-400' : 'text-gray-600'}`}>
-                          {score.weightLossPts > 0 ? `+${Math.round(score.weightLossPts)}` : '—'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">🥗 Healthy Days</span>
+                        <span className="text-gray-500">🥗 {isStreakFormat ? 'Healthy Days' : 'Healthy Days'}</span>
                         <span className={`font-medium ${score.healthyDayPts > 0 ? 'text-green-400' : 'text-gray-600'}`}>
-                          {score.healthyDayPts > 0 ? `+${score.healthyDayPts}` : '—'}
+                          {isStreakFormat ? `${streakScore.healthyDays}d` : (score.healthyDayPts > 0 ? `+${score.healthyDayPts}` : '—')}
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">🏃 Workouts</span>
-                        <span className="text-gray-400">{workouts.length}</span>
-                      </div>
+                      {!isStreakFormat && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">🏃 Workouts</span>
+                          <span className="text-gray-400">{workouts.length}</span>
+                        </div>
+                      )}
                       {bonusDays > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-500">🔥 Streak</span>
