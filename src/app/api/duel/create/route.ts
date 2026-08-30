@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     .from('duel_challenges')
     .insert({
       name: name.trim(),
-      format: format === 'daily-streak' ? 'daily-streak' : 'classic',
+      format: format === 'daily-streak' ? 'daily-streak' : format === 'golf' ? 'golf' : 'classic',
       created_by: user.id,
       competitor_a_id: competitorAId,
       competitor_b_id: competitorBId,

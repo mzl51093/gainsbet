@@ -109,6 +109,16 @@ interface DuelChallenge {
   creator?: Profile
 }
 
+interface GolfRound {
+  id: string
+  user_id: string
+  course_name?: string | null
+  holes: number
+  gross_score: number
+  notes?: string | null
+  played_at: string
+}
+
 interface Props {
   duel: DuelChallenge
   workoutsA: Workout[]
@@ -117,6 +127,8 @@ interface Props {
   checkInsA: CheckIn[]
   checkInsB: CheckIn[]
   weeklyPhotos: WeeklyPhoto[]
+  golfRoundsA: GolfRound[]
+  golfRoundsB: GolfRound[]
   comments: Comment[]
   reactions: Reaction[]
   watcherProfiles: Profile[]
@@ -229,6 +241,12 @@ function computeDailyStreakScores(
   return { workoutDays, healthyDays, total, totalDays, maxPossible }
 }
 
+function computeGolfScores(rounds: GolfRound[]) {
+  if (rounds.length === 0) return { rounds: 0, totalStrokes: 0, avgScore: 0 }
+  const totalStrokes = rounds.reduce((s, r) => s + r.gross_score, 0)
+  return { rounds: rounds.length, totalStrokes, avgScore: totalStrokes / rounds.length }
+}
+
 function formatTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
@@ -249,6 +267,8 @@ export default function DuelClient({
   checkInsA,
   checkInsB,
   weeklyPhotos,
+  golfRoundsA,
+  golfRoundsB,
   comments: initialComments,
   reactions: initialReactions,
   watcherProfiles,
@@ -320,6 +340,16 @@ export default function DuelClient({
   const [progressImageUrl, setProgressImageUrl] = useState<string | null>(null)
   const [buildingProgress, setBuildingProgress] = useState(false)
 
+  // Golf round logging state
+  const [showGolfForm, setShowGolfForm] = useState(false)
+  const [golfCourse, setGolfCourse] = useState('')
+  const [golfHoles, setGolfHoles] = useState<9 | 18>(18)
+  const [golfScore, setGolfScore] = useState('')
+  const [golfNotes, setGolfNotes] = useState('')
+  const [golfDate, setGolfDate] = useState(new Date().toISOString().split('T')[0])
+  const [submittingGolf, setSubmittingGolf] = useState(false)
+  const [golfError, setGolfError] = useState('')
+
   const isCompetitorA = currentUserId === duel.competitor_a_id
   const isCompetitorB = currentUserId === duel.competitor_b_id
   const isCompetitor = isCompetitorA || isCompetitorB
@@ -330,10 +360,13 @@ export default function DuelClient({
   const profileB = duel.profileB
 
   const isStreakFormat = duel.format === 'daily-streak'
+  const isGolfFormat = duel.format === 'golf'
   const scoreA = computeScores(workoutsA, duel.starting_weight_a, duel.lowest_weight_a, duel.target_weight_a, checkInsA)
   const scoreB = computeScores(workoutsB, duel.starting_weight_b, duel.lowest_weight_b, duel.target_weight_b, checkInsB)
   const streakScoreA = computeDailyStreakScores(workoutsA, checkInsA, duel.start_date, duel.end_date)
   const streakScoreB = computeDailyStreakScores(workoutsB, checkInsB, duel.start_date, duel.end_date)
+  const golfScoreA = computeGolfScores(golfRoundsA)
+  const golfScoreB = computeGolfScores(golfRoundsB)
   const effectiveScoreA = isStreakFormat ? { ...scoreA, total: streakScoreA.total, workoutPts: streakScoreA.workoutDays, healthyDayPts: streakScoreA.healthyDays, weightLossPts: 0 } : scoreA
   const effectiveScoreB = isStreakFormat ? { ...scoreB, total: streakScoreB.total, workoutPts: streakScoreB.workoutDays, healthyDayPts: streakScoreB.healthyDays, weightLossPts: 0 } : scoreB
 
@@ -360,9 +393,15 @@ export default function DuelClient({
   const streakA = computeStreak(checkInsA)
   const streakB = computeStreak(checkInsB)
 
-  const lead = effectiveScoreA.total - effectiveScoreB.total
+  // Golf: lower score wins. Lead = how many strokes B is ahead of A per round.
+  const golfLead = isGolfFormat
+    ? (golfScoreA.rounds > 0 && golfScoreB.rounds > 0
+        ? golfScoreB.avgScore - golfScoreA.avgScore  // positive = A is leading (lower avg)
+        : golfScoreA.rounds > 0 ? 1 : golfScoreB.rounds > 0 ? -1 : 0)
+    : 0
+  const lead = isGolfFormat ? golfLead : effectiveScoreA.total - effectiveScoreB.total
   const aIsLeading = lead > 0
-  const tied = Math.abs(lead) < 0.5
+  const tied = isGolfFormat ? Math.abs(golfLead) < 0.01 : Math.abs(lead) < 0.5
 
   const rateA = scoreA.workoutPts / daysElapsed
   const rateB = scoreB.workoutPts / daysElapsed
@@ -378,15 +417,23 @@ export default function DuelClient({
     const winner = duel.winner_id === duel.competitor_a_id ? profileA : profileB
     headlineText = `🏆 ${winner?.display_name?.split(' ')[0] || '?'} WINS!`
     headlineColor = 'text-green-400'
+  } else if (isGolfFormat && golfScoreA.rounds === 0 && golfScoreB.rounds === 0) {
+    headlineText = '⛳ No rounds played yet'
+    headlineColor = 'text-gray-400'
   } else if (tied) {
-    headlineText = "It's TIED ⚖️"
+    headlineText = isGolfFormat ? '⛳ All Even' : "It's TIED ⚖️"
     headlineColor = 'text-yellow-400'
   } else {
     const leaderName = aIsLeading
       ? profileA?.display_name?.split(' ')[0]
       : profileB?.display_name?.split(' ')[0]
-    const margin = Math.abs(lead).toFixed(1)
-    headlineText = `${leaderName} leads by ${parseFloat(margin)} pts`
+    if (isGolfFormat) {
+      const margin = Math.abs(golfLead).toFixed(1)
+      headlineText = `⛳ ${leaderName} leads by ${parseFloat(margin)} strokes/round`
+    } else {
+      const margin = Math.abs(lead).toFixed(1)
+      headlineText = `${leaderName} leads by ${parseFloat(margin)} pts`
+    }
     headlineColor = 'text-green-400'
   }
 
@@ -401,6 +448,39 @@ export default function DuelClient({
   const liveHasMeals = [breakfastNotes, lunchNotes, dinnerNotes, snackNotes].every(s => s.trim())
   const liveHasDisqualifier = Object.values(disqualifiers).some(Boolean)
   const liveWouldEarn = liveHasMeals && !liveHasDisqualifier
+
+  async function submitGolfRound() {
+    setSubmittingGolf(true)
+    setGolfError('')
+    try {
+      const res = await fetch(`/api/duel/${duelId}/golf-round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseName: golfCourse.trim() || null,
+          holes: golfHoles,
+          grossScore: parseInt(golfScore),
+          notes: golfNotes.trim() || null,
+          playedAt: golfDate ? golfDate + 'T12:00:00Z' : undefined,
+        }),
+      })
+      if (res.ok) {
+        setShowGolfForm(false)
+        setGolfCourse('')
+        setGolfScore('')
+        setGolfNotes('')
+        setGolfHoles(18)
+        router.refresh()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setGolfError(d.error || 'Failed to log round')
+      }
+    } catch {
+      setGolfError('Network error — please try again')
+    } finally {
+      setSubmittingGolf(false)
+    }
+  }
 
   async function submitCheckIn() {
     setSubmittingCheckIn(true)
@@ -776,6 +856,13 @@ export default function DuelClient({
           </div>
         </div>
       )}
+      {isGolfFormat && (
+        <div className="bg-green-900/20 border-b border-green-800/30 px-4 py-2">
+          <div className="max-w-lg mx-auto">
+            <p className="text-green-300 text-xs font-semibold">⛳ Golf — Lowest average score wins · Log 9 or 18-hole rounds</p>
+          </div>
+        </div>
+      )}
 
       {/* Wager bar */}
       {duel.wager && (
@@ -809,7 +896,7 @@ export default function DuelClient({
       {/* Tabs */}
       <div className="bg-gray-900 border-b border-gray-800 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex">
-          {(['scorecard', 'activity', ...(isCompetitor ? ['weigh-in'] : [])] as const).map(t => (
+          {(['scorecard', 'activity', ...(isCompetitor && !isGolfFormat ? ['weigh-in'] : [])] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t as any)}
@@ -833,15 +920,190 @@ export default function DuelClient({
             {/* Headline */}
             <div className="text-center py-2">
               <p className={`text-2xl font-black ${headlineColor}`}>{headlineText}</p>
-              {isActive && !tied && (
+              {!isGolfFormat && isActive && !tied && (
                 <p className="text-gray-500 text-xs mt-1">
                   Projected: {Math.round(projTotalA)} vs {Math.round(projTotalB)} pts by end
                 </p>
               )}
             </div>
 
+            {/* Golf: Log Round card + scorecards */}
+            {isGolfFormat && (
+              <>
+                {isCompetitor && isActive && (
+                  <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+                    {!showGolfForm ? (
+                      <button
+                        onClick={() => setShowGolfForm(true)}
+                        className="w-full bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded-xl text-sm transition-colors"
+                      >
+                        ⛳ Log a Round
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-white font-semibold text-sm">⛳ Log a Round</p>
+                        <div>
+                          <label className="text-gray-400 text-xs block mb-1">Course Name (optional)</label>
+                          <input
+                            type="text"
+                            value={golfCourse}
+                            onChange={e => setGolfCourse(e.target.value)}
+                            placeholder="e.g. Pebble Beach"
+                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-gray-400 text-xs block mb-1">Holes</label>
+                            <div className="flex gap-2">
+                              {([9, 18] as const).map(h => (
+                                <button
+                                  key={h}
+                                  type="button"
+                                  onClick={() => setGolfHoles(h)}
+                                  className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                                    golfHoles === h ? 'bg-green-500 text-black' : 'bg-gray-800 text-gray-300'
+                                  }`}
+                                >
+                                  {h}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-gray-400 text-xs block mb-1">Gross Score *</label>
+                            <input
+                              type="number"
+                              value={golfScore}
+                              onChange={e => setGolfScore(e.target.value)}
+                              placeholder={golfHoles === 9 ? '36–90' : '60–180'}
+                              min={golfHoles === 9 ? 18 : 36}
+                              max={200}
+                              className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-xs block mb-1">Date Played</label>
+                          <input
+                            type="date"
+                            value={golfDate}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={e => setGolfDate(e.target.value)}
+                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-400 text-xs block mb-1">Notes (optional)</label>
+                          <input
+                            type="text"
+                            value={golfNotes}
+                            onChange={e => setGolfNotes(e.target.value)}
+                            placeholder="e.g. Windy, played well on back 9"
+                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-gray-700 focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        {golfError && <p className="text-red-400 text-xs">{golfError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setShowGolfForm(false); setGolfError('') }}
+                            className="flex-1 bg-gray-800 text-gray-300 py-2.5 rounded-xl text-sm transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={submitGolfRound}
+                            disabled={submittingGolf || !golfScore}
+                            className="flex-1 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors"
+                          >
+                            {submittingGolf ? 'Saving...' : 'Save Round'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Golf side-by-side scorecards */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { profile: profileA, gs: golfScoreA, rounds: golfRoundsA },
+                    { profile: profileB, gs: golfScoreB, rounds: golfRoundsB },
+                  ].map(({ profile, gs, rounds }, idx) => {
+                    const isLeader = idx === 0 ? lead > 0 : lead < 0
+                    const isMe = idx === 0 ? isCompetitorA : isCompetitorB
+                    return (
+                      <div key={idx} className={`rounded-2xl p-4 border ${
+                        isLeader && gs.rounds > 0 ? 'bg-green-950/30 border-green-700/50' : 'bg-gray-900 border-gray-800'
+                      }`}>
+                        <div className="mb-3">
+                          <p className="text-white font-bold text-sm leading-tight">
+                            {profile?.display_name?.split(' ')[0] || '?'}
+                            {isMe && <span className="text-green-400 text-xs ml-1">(you)</span>}
+                          </p>
+                          {isLeader && gs.rounds > 0 && duel.status === 'active' && (
+                            <p className="text-green-400 text-xs font-semibold">LEADING ⛳</p>
+                          )}
+                        </div>
+                        {gs.rounds === 0 ? (
+                          <p className="text-gray-600 text-sm">No rounds yet</p>
+                        ) : (
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">⛳ Rounds</span>
+                              <span className="text-gray-300 font-medium">{gs.rounds}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">📊 Avg Score</span>
+                              <span className={`font-bold text-base ${isLeader ? 'text-green-400' : 'text-white'}`}>
+                                {gs.avgScore.toFixed(1)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">🏌️ Best</span>
+                              <span className="text-gray-300">{Math.min(...rounds.map(r => r.gross_score))}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Golf round history */}
+                {(golfRoundsA.length > 0 || golfRoundsB.length > 0) && (
+                  <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+                    <p className="text-gray-500 text-xs font-semibold mb-3">ROUND HISTORY</p>
+                    <div className="space-y-2">
+                      {[...golfRoundsA.map(r => ({ ...r, profile: profileA })),
+                         ...golfRoundsB.map(r => ({ ...r, profile: profileB }))]
+                        .sort((a, b) => b.played_at.localeCompare(a.played_at))
+                        .map(round => (
+                          <div key={round.id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+                            <div>
+                              <p className="text-white text-sm font-semibold">
+                                {round.profile?.display_name?.split(' ')[0]} — {round.gross_score} strokes
+                                <span className="text-gray-500 text-xs ml-1">({round.holes}h)</span>
+                              </p>
+                              {round.course_name && (
+                                <p className="text-gray-500 text-xs">{round.course_name}</p>
+                              )}
+                              {round.notes && (
+                                <p className="text-gray-600 text-xs italic">{round.notes}</p>
+                              )}
+                            </div>
+                            <p className="text-gray-600 text-xs">{new Date(round.played_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Healthy Day Check-In card (competitors only, active duel) */}
-            {isCompetitor && isActive && (
+            {isCompetitor && isActive && !isGolfFormat && (
               <div className={`rounded-2xl border ${
                 alreadyCheckedIn
                   ? (myTodayCheckIn?.earned_bonus ? 'bg-green-950/30 border-green-700/50' : 'bg-gray-900 border-gray-700')
@@ -880,7 +1142,7 @@ export default function DuelClient({
             )}
 
             {/* Check-in result flash */}
-            {checkInResult && (
+            {!isGolfFormat && checkInResult && (
               <div className={`rounded-2xl p-4 text-center border ${
                 checkInResult.earned_bonus ? 'bg-green-950/40 border-green-600/50' : 'bg-gray-900 border-gray-700'
               }`}>
@@ -891,8 +1153,8 @@ export default function DuelClient({
               </div>
             )}
 
-            {/* Side-by-side scorecards */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Side-by-side scorecards (non-golf) */}
+            {!isGolfFormat && <div className="grid grid-cols-2 gap-3">
               {[
                 { profile: profileA, score: effectiveScoreA, streakScore: streakScoreA, workouts: workoutsA, checkIns: checkInsA,
                   startW: duel.starting_weight_a, lowW: duel.lowest_weight_a, targetW: duel.target_weight_a, streak: streakA },
@@ -989,10 +1251,10 @@ export default function DuelClient({
                   </div>
                 )
               })}
-            </div>
+            </div>}
 
             {/* Head-to-head progress bar */}
-            {(scoreA.total > 0 || scoreB.total > 0) && (
+            {!isGolfFormat && (scoreA.total > 0 || scoreB.total > 0) && (
               <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
                 <p className="text-gray-500 text-xs mb-3 font-semibold">HEAD-TO-HEAD SHARE</p>
                 {(() => {
@@ -1019,7 +1281,7 @@ export default function DuelClient({
             )}
 
             {/* Projections */}
-            {isActive && (scoreA.workoutPts > 0 || scoreB.workoutPts > 0) && (
+            {!isGolfFormat && isActive && (scoreA.workoutPts > 0 || scoreB.workoutPts > 0) && (
               <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
                 <p className="text-gray-500 text-xs mb-3 font-semibold">📈 PROJECTIONS ({daysLeft}d remaining)</p>
                 <div className="space-y-2 text-sm">

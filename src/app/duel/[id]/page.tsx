@@ -51,6 +51,8 @@ export default async function DuelPage({
     { data: checkInsA },
     { data: checkInsB },
     { data: weeklyPhotos },
+    { data: golfRoundsA },
+    { data: golfRoundsB },
   ] = await Promise.all([
     admin
       .from('workouts')
@@ -104,6 +106,18 @@ export default async function DuelPage({
       .select('*')
       .eq('duel_id', id)
       .order('check_in_week', { ascending: false }),
+    admin
+      .from('golf_rounds')
+      .select('*')
+      .eq('duel_id', id)
+      .eq('user_id', duel.competitor_a_id)
+      .order('played_at', { ascending: false }),
+    admin
+      .from('golf_rounds')
+      .select('*')
+      .eq('duel_id', id)
+      .eq('user_id', duel.competitor_b_id)
+      .order('played_at', { ascending: false }),
   ])
 
   return (
@@ -119,6 +133,8 @@ export default async function DuelPage({
         checkInsA={checkInsA || []}
         checkInsB={checkInsB || []}
         weeklyPhotos={weeklyPhotos || []}
+        golfRoundsA={golfRoundsA || []}
+        golfRoundsB={golfRoundsB || []}
         currentUserId={user.id}
         duelId={id}
       />

@@ -29,7 +29,7 @@ export default function NewDuelPage() {
   const [startWeightB, setStartWeightB] = useState('')
   const [targetWeightB, setTargetWeightB] = useState('')
 
-  const [format, setFormat] = useState<'classic' | 'daily-streak'>('classic')
+  const [format, setFormat] = useState<'classic' | 'daily-streak' | 'golf'>('classic')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -149,10 +149,11 @@ export default function NewDuelPage() {
               <span className="text-white font-semibold text-sm block mb-1">Format *</span>
               <p className="text-gray-500 text-xs mb-3">Choose how points are scored.</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {([
                 { value: 'classic', label: '⚔️ Classic', desc: 'Workout pts + weight loss + healthy days' },
                 { value: 'daily-streak', label: '📅 Daily Streak', desc: '1 pt workout day · 1 pt healthy day · 2 pts/day max' },
+                { value: 'golf', label: '⛳ Golf', desc: 'Log rounds · lowest average score wins' },
               ] as const).map(opt => (
                 <button
                   key={opt.value}
@@ -194,7 +195,7 @@ export default function NewDuelPage() {
                 </select>
               </div>
 
-              {competitorAId && (
+              {competitorAId && format !== 'golf' && (
                 <div className="pl-4 flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <span className="text-gray-600 text-xs">Start:</span>
@@ -234,7 +235,7 @@ export default function NewDuelPage() {
                 </select>
               </div>
 
-              {competitorBId && (
+              {competitorBId && format !== 'golf' && (
                 <div className="pl-4 flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <span className="text-gray-600 text-xs">Start:</span>
@@ -340,14 +341,28 @@ export default function NewDuelPage() {
 
           {/* Scoring info */}
           <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700/50">
-            <p className="text-gray-400 text-xs font-semibold mb-2">📊 How scoring works</p>
-            <ul className="text-gray-500 text-xs space-y-1">
-              <li>• <span className="text-gray-300">Workout Points</span> — same as regular workouts</li>
-              <li>• <span className="text-gray-300">Weight Loss Points</span> — up to 300 pts at 100% of target weight loss</li>
-              <li>• e.g. start 188, target 170 → losing 9 lbs = 50% = 150 pts</li>
-              <li>• Uses lowest verified weigh-in (not current) to prevent yo-yo penalty</li>
-              <li>• Total = Workout Pts + Weight Loss Pts</li>
-            </ul>
+            {format === 'golf' ? (
+              <>
+                <p className="text-gray-400 text-xs font-semibold mb-2">⛳ How golf scoring works</p>
+                <ul className="text-gray-500 text-xs space-y-1">
+                  <li>• Log 9 or 18-hole rounds with your gross stroke count</li>
+                  <li>• <span className="text-gray-300">Lower average score wins</span> — classic stroke play</li>
+                  <li>• Both competitors can log rounds anytime during the competition</li>
+                  <li>• No workout points, weight loss, or healthy day tracking</li>
+                </ul>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-400 text-xs font-semibold mb-2">📊 How scoring works</p>
+                <ul className="text-gray-500 text-xs space-y-1">
+                  <li>• <span className="text-gray-300">Workout Points</span> — same as regular workouts</li>
+                  <li>• <span className="text-gray-300">Weight Loss Points</span> — up to 300 pts at 100% of target weight loss</li>
+                  <li>• e.g. start 188, target 170 → losing 9 lbs = 50% = 150 pts</li>
+                  <li>• Uses lowest verified weigh-in (not current) to prevent yo-yo penalty</li>
+                  <li>• Total = Workout Pts + Weight Loss Pts</li>
+                </ul>
+              </>
+            )}
           </div>
 
           {error && (
