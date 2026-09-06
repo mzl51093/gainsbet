@@ -1376,8 +1376,13 @@ export default function DuelClient({
             {activityItems.map((item, idx) => {
               if (item.type === 'workout') {
                 const w = item as Workout & { type: 'workout'; profile?: Profile }
+                const streakCounts = isStreakFormat && w.duration_minutes >= 30
                 return (
-                  <div key={`w-${w.id}`} className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+                  <div key={`w-${w.id}`} className={`rounded-2xl p-4 border ${
+                    isStreakFormat
+                      ? streakCounts ? 'bg-green-950/20 border-green-700/50' : 'bg-gray-900 border-gray-800'
+                      : 'bg-gray-900 border-gray-800'
+                  }`}>
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{WORKOUT_EMOJIS[w.workout_type] || '💪'}</span>
                       <div className="flex-1 min-w-0">
@@ -1385,12 +1390,33 @@ export default function DuelClient({
                           <span className="text-white text-sm font-semibold">{w.profile?.display_name?.split(' ')[0]}</span>
                           <span className="text-gray-400 text-xs">{w.workout_type}</span>
                         </div>
-                        <p className="text-gray-500 text-xs">{w.duration_minutes}min · {formatTimeAgo(w.logged_at)}</p>
+                        <p className="text-gray-500 text-xs">
+                          {w.duration_minutes}min · {formatTimeAgo(w.logged_at)}
+                          {isStreakFormat && !streakCounts && (
+                            <span className="text-red-400 ml-1">· needs 30+ min</span>
+                          )}
+                        </p>
                         {w.notes && <p className="text-gray-400 text-xs mt-1 truncate">{w.notes}</p>}
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-green-400 font-bold text-sm">+{w.points}</p>
-                        <p className="text-gray-600 text-xs">pts</p>
+                        {isStreakFormat ? (
+                          streakCounts ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-green-400 font-black text-xl">1</span>
+                              <span className="text-green-600 text-xs">✓ counts</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center">
+                              <span className="text-gray-600 font-black text-xl">0</span>
+                              <span className="text-gray-600 text-xs">too short</span>
+                            </div>
+                          )
+                        ) : (
+                          <>
+                            <p className="text-green-400 font-bold text-sm">+{w.points}</p>
+                            <p className="text-gray-600 text-xs">pts</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1491,8 +1517,8 @@ export default function DuelClient({
                       </div>
                       <p className="text-gray-500 text-xs">
                         {ci.earned_bonus
-                          ? 'Earned Healthy Day Bonus'
-                          : `Missed bonus (${ci.health_score}/200)`
+                          ? (isStreakFormat ? '✓ Healthy day point earned' : 'Earned Healthy Day Bonus')
+                          : (isStreakFormat ? `✗ No point (${ci.health_score}/200)` : `Missed bonus (${ci.health_score}/200)`)
                         } · {ci.check_in_date}
                       </p>
                       {!isExpanded && (
@@ -1504,7 +1530,19 @@ export default function DuelClient({
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      {ci.earned_bonus ? (
+                      {isStreakFormat ? (
+                        ci.earned_bonus ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-green-400 font-black text-xl">1</span>
+                            <span className="text-green-600 text-xs">✓ counts</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            <span className="text-gray-600 font-black text-xl">0</span>
+                            <span className="text-gray-600 text-xs">no point</span>
+                          </div>
+                        )
+                      ) : ci.earned_bonus ? (
                         <>
                           <p className="text-green-400 font-bold text-sm">+10</p>
                           <p className="text-gray-600 text-xs">pts</p>
