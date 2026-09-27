@@ -201,7 +201,7 @@ function computeStreak(checkIns: CheckIn[]): number {
 function computeScores(
   workouts: Workout[],
   startingWeight: number | null | undefined,
-  lowestWeight: number | null | undefined,
+  currentWeight: number | null | undefined,
   targetWeight: number | null | undefined,
   checkIns: CheckIn[],
 ) {
@@ -210,9 +210,9 @@ function computeScores(
   let weightLossPts = 0
   let lbsLost = 0
   let lbsToTarget = 0
-  if (startingWeight && targetWeight && lowestWeight && startingWeight > targetWeight) {
+  if (startingWeight && targetWeight && currentWeight && startingWeight > targetWeight) {
     lbsToTarget = startingWeight - targetWeight
-    lbsLost = Math.max(0, startingWeight - lowestWeight)
+    lbsLost = Math.max(0, startingWeight - currentWeight)
     const effectiveLost = Math.min(lbsLost, lbsToTarget)
     weightProgressPct = (effectiveLost / lbsToTarget) * 100
     weightLossPts = (weightProgressPct / 100) * 300
@@ -362,19 +362,19 @@ export default function DuelClient({
   const isStreakFormat = duel.format === 'daily-streak'
   const isGolfFormat = duel.format === 'golf'
 
-  // Compute lowest weight dynamically from all verified weigh-ins so final scores
-  // always reflect the most recent submissions, even ones logged after the end date.
-  const verifiedWeighInsA = weighIns.filter(w => w.user_id === duel.competitor_a_id && w.verified)
-  const verifiedWeighInsB = weighIns.filter(w => w.user_id === duel.competitor_b_id && w.verified)
-  const dynamicLowestA = verifiedWeighInsA.length > 0
-    ? Math.min(...verifiedWeighInsA.map(w => w.weight))
-    : duel.lowest_weight_a
-  const dynamicLowestB = verifiedWeighInsB.length > 0
-    ? Math.min(...verifiedWeighInsB.map(w => w.weight))
-    : duel.lowest_weight_b
+  // Use most recent non-starting weigh-in for each competitor so scores always
+  // reflect current weight, not a historical low.
+  const nonStartingWeighInsA = weighIns
+    .filter(w => w.user_id === duel.competitor_a_id && w.verified && !w.is_starting_weight)
+    .sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())
+  const nonStartingWeighInsB = weighIns
+    .filter(w => w.user_id === duel.competitor_b_id && w.verified && !w.is_starting_weight)
+    .sort((a, b) => new Date(b.weighed_at).getTime() - new Date(a.weighed_at).getTime())
+  const dynamicWeightA = nonStartingWeighInsA[0]?.weight ?? duel.lowest_weight_a
+  const dynamicWeightB = nonStartingWeighInsB[0]?.weight ?? duel.lowest_weight_b
 
-  const scoreA = computeScores(workoutsA, duel.starting_weight_a, dynamicLowestA, duel.target_weight_a, checkInsA)
-  const scoreB = computeScores(workoutsB, duel.starting_weight_b, dynamicLowestB, duel.target_weight_b, checkInsB)
+  const scoreA = computeScores(workoutsA, duel.starting_weight_a, dynamicWeightA, duel.target_weight_a, checkInsA)
+  const scoreB = computeScores(workoutsB, duel.starting_weight_b, dynamicWeightB, duel.target_weight_b, checkInsB)
   const streakScoreA = computeDailyStreakScores(workoutsA, checkInsA, duel.start_date, duel.end_date)
   const streakScoreB = computeDailyStreakScores(workoutsB, checkInsB, duel.start_date, duel.end_date)
   const golfScoreA = computeGolfScores(golfRoundsA)
