@@ -1192,7 +1192,7 @@ export default function DuelClient({
 
                     <div className="mb-3">
                       <p className={`text-3xl font-black ${isLeader ? 'text-green-400' : 'text-white'}`}>
-                        {isStreakFormat ? score.total : score.total.toFixed(1)}
+                        {isStreakFormat ? score.total : parseFloat(score.total.toFixed(1))}
                       </p>
                       <p className="text-gray-500 text-xs">{isStreakFormat ? `of ${streakScore.maxPossible} pts` : 'total pts'}</p>
                     </div>
@@ -1200,7 +1200,7 @@ export default function DuelClient({
                     <div className="space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-gray-500">{isStreakFormat ? '💪 Workout Days' : '💪 Workout'}</span>
-                        <span className="text-gray-300 font-medium">{isStreakFormat ? `${streakScore.workoutDays}d` : score.workoutPts}</span>
+                        <span className="text-gray-300 font-medium">{isStreakFormat ? `${streakScore.workoutDays}d` : parseFloat(score.workoutPts.toFixed(1))}</span>
                       </div>
                       {!isStreakFormat && (
                         <div className="flex justify-between">
