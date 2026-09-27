@@ -1169,9 +1169,9 @@ export default function DuelClient({
             {!isGolfFormat && <div className="grid grid-cols-2 gap-3">
               {[
                 { profile: profileA, score: effectiveScoreA, streakScore: streakScoreA, workouts: workoutsA, checkIns: checkInsA,
-                  startW: duel.starting_weight_a, lowW: dynamicLowestA, targetW: duel.target_weight_a, streak: streakA },
+                  startW: duel.starting_weight_a, lowW: dynamicWeightA, targetW: duel.target_weight_a, streak: streakA },
                 { profile: profileB, score: effectiveScoreB, streakScore: streakScoreB, workouts: workoutsB, checkIns: checkInsB,
-                  startW: duel.starting_weight_b, lowW: dynamicLowestB, targetW: duel.target_weight_b, streak: streakB },
+                  startW: duel.starting_weight_b, lowW: dynamicWeightB, targetW: duel.target_weight_b, streak: streakB },
               ].map(({ profile, score, streakScore, workouts, checkIns, startW, lowW, targetW, streak }, idx) => {
                 const isLeader = idx === 0 ? lead > 0.5 : lead < -0.5
                 const isMe = idx === 0 ? isCompetitorA : isCompetitorB
