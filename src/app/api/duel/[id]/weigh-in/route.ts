@@ -29,7 +29,7 @@ export async function POST(
     .single()
 
   if (!duel) return NextResponse.json({ error: 'Duel not found' }, { status: 404 })
-  if (duel.status !== 'active') return NextResponse.json({ error: 'Duel is not active' }, { status: 400 })
+  if (duel.status === 'cancelled') return NextResponse.json({ error: 'Duel is cancelled' }, { status: 400 })
 
   const isCompetitorA = user.id === duel.competitor_a_id
   const isCompetitorB = user.id === duel.competitor_b_id

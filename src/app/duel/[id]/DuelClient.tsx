@@ -361,8 +361,20 @@ export default function DuelClient({
 
   const isStreakFormat = duel.format === 'daily-streak'
   const isGolfFormat = duel.format === 'golf'
-  const scoreA = computeScores(workoutsA, duel.starting_weight_a, duel.lowest_weight_a, duel.target_weight_a, checkInsA)
-  const scoreB = computeScores(workoutsB, duel.starting_weight_b, duel.lowest_weight_b, duel.target_weight_b, checkInsB)
+
+  // Compute lowest weight dynamically from all verified weigh-ins so final scores
+  // always reflect the most recent submissions, even ones logged after the end date.
+  const verifiedWeighInsA = weighIns.filter(w => w.user_id === duel.competitor_a_id && w.verified)
+  const verifiedWeighInsB = weighIns.filter(w => w.user_id === duel.competitor_b_id && w.verified)
+  const dynamicLowestA = verifiedWeighInsA.length > 0
+    ? Math.min(...verifiedWeighInsA.map(w => w.weight))
+    : duel.lowest_weight_a
+  const dynamicLowestB = verifiedWeighInsB.length > 0
+    ? Math.min(...verifiedWeighInsB.map(w => w.weight))
+    : duel.lowest_weight_b
+
+  const scoreA = computeScores(workoutsA, duel.starting_weight_a, dynamicLowestA, duel.target_weight_a, checkInsA)
+  const scoreB = computeScores(workoutsB, duel.starting_weight_b, dynamicLowestB, duel.target_weight_b, checkInsB)
   const streakScoreA = computeDailyStreakScores(workoutsA, checkInsA, duel.start_date, duel.end_date)
   const streakScoreB = computeDailyStreakScores(workoutsB, checkInsB, duel.start_date, duel.end_date)
   const golfScoreA = computeGolfScores(golfRoundsA)
@@ -1157,9 +1169,9 @@ export default function DuelClient({
             {!isGolfFormat && <div className="grid grid-cols-2 gap-3">
               {[
                 { profile: profileA, score: effectiveScoreA, streakScore: streakScoreA, workouts: workoutsA, checkIns: checkInsA,
-                  startW: duel.starting_weight_a, lowW: duel.lowest_weight_a, targetW: duel.target_weight_a, streak: streakA },
+                  startW: duel.starting_weight_a, lowW: dynamicLowestA, targetW: duel.target_weight_a, streak: streakA },
                 { profile: profileB, score: effectiveScoreB, streakScore: streakScoreB, workouts: workoutsB, checkIns: checkInsB,
-                  startW: duel.starting_weight_b, lowW: duel.lowest_weight_b, targetW: duel.target_weight_b, streak: streakB },
+                  startW: duel.starting_weight_b, lowW: dynamicLowestB, targetW: duel.target_weight_b, streak: streakB },
               ].map(({ profile, score, streakScore, workouts, checkIns, startW, lowW, targetW, streak }, idx) => {
                 const isLeader = idx === 0 ? lead > 0.5 : lead < -0.5
                 const isMe = idx === 0 ? isCompetitorA : isCompetitorB
